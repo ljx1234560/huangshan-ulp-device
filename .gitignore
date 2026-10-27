@@ -1,0 +1,30 @@
+# Local machine configuration
+.env.local.ps1
+
+# SiFli/SCons build outputs
+project/build_*/
+project/.sconsign.dblite
+project/Kconfig.tmp
+project/__pycache__/
+**/__pycache__/
+*.py[cod]
+src/platform/lcpu_img.c
+
+# Generated assets and test output
+assets/generated/*
+!assets/generated/.gitkeep
+test-results/
+releases/*.bin
+releases/*.elf
+releases/*.hex
+releases/*.map
+host/ai-backend/.env
+host/ai-backend/runtime-data/
+
+# IDE and operating-system files
+.vscode/*.log
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+

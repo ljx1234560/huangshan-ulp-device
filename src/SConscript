@@ -1,0 +1,15 @@
+import os
+from building import *
+
+cwd = GetCurrentDir()
+src = Glob('*.c') + Glob('app/*.c') + Glob('ui/*.c') + Glob('services/*.c')
+
+group = DefineGroup(
+    'Applications',
+    src,
+    depend=[''],
+    CPPPATH=[cwd, os.path.join(cwd, 'app'), os.path.join(cwd, 'ui'),
+             os.path.join(cwd, 'services')]
+)
+
+Return('group')

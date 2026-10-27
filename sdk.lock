@@ -1,0 +1,8 @@
+repository=https://github.com/OpenSiFli/SiFli-SDK
+branch=release/v2.4
+commit=ce2001468f18c5b844efabc12566c8d8a241dd15
+version=2.4.6-25-gce2001468
+board=sf32lb52-lchspi-ulp
+cpu=hcpu
+bluetooth_worktree_commit=875da6beec49b69db8d3a9417094a8ea0eb66eb1
+
