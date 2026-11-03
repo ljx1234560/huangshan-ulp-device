@@ -30,6 +30,10 @@ def main() -> int:
             VELAPET_DATA_ROOT=temp,
             VELAPET_DEVICE_TOKENS="smoke-device-token",
             MIMO_API_KEY="",
+            DEEPSEEK_API_KEY="",
+            ARK_API_KEY="",
+            VELAPET_IMAGE_PROVIDER="demo",
+            VELAPET_CHAT_PROVIDER="mimo",
         )
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
         process = subprocess.Popen(
@@ -50,7 +54,7 @@ def main() -> int:
             creationflags=flags,
         )
         try:
-            with httpx.Client(timeout=5.0, follow_redirects=False) as client:
+            with httpx.Client(timeout=5.0, follow_redirects=False, trust_env=False) as client:
                 deadline = time.monotonic() + 15.0
                 while True:
                     try:

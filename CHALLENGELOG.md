@@ -742,3 +742,107 @@ Confirm the user's apparent phone connection to the official BLE Peripheral cont
 - The main collaboration risk is still the absence of an initial Git baseline and shared remote. The project lead should review `AGENTS.md`, decide the remote host and access model, then create the first commit before assigning parallel feature branches.
 - Final documentation consistency check passed: all 34 referenced local paths exist, Markdown code fences are balanced, no trailing whitespace was found, and no embedded secret pattern was detected in `AGENTS.md`.
 
+## 2026-11-02 - Desktop AI chat and photo-job prototype
+
+### Objective and scope
+
+- Implement host-side functions that do not depend on tomorrow's hardware details: quick/custom chat, bounded persona conversation, photo jobs and a Chinese desktop client.
+- Work in the personal fork clone on `member-4/cloud-chat-assets`; no shared-repository push, commit or PR.
+
+### Decisions and changes
+
+- DeepSeek is the default chat provider. Built-in NOVA/SPARK persona profiles and display names feed the system prompt; SQLite stores at most six recent turns per conversation, scoped by device/token digest.
+- Added demo (resize only, explicitly labeled) and configured Seedream reference-image job paths. Jobs have idempotency, bounded concurrency, integrity manifests, atomic file replacement and interrupted-process recovery. No absolute device storage paths are assumed.
+- Added Tk desktop quick/custom messaging, photo selection, polling and preview with main-thread result dispatch. Temporary resource sizes are 128, 240 and 160 pixels square with opaque backgrounds.
+- Added hidden-input local API configuration script and Chinese integration/progress documents. Secrets remain in the ignored backend `.env`.
+- Changed only backend, tools and documentation; no firmware API, driver, SDK or UI code changed. Backend/interface changes need frontend/hardware-owner review before product integration.
+
+### Validation
+
+- `scripts/test-ai-backend.ps1`: 14 passed; one dependency deprecation warning.
+- Real local HTTP smoke: authentication and fallback passed. Disabled environment proxy use for loopback test/client traffic after diagnosing a 502 from the local proxy.
+- Desktop smoke: hidden Tk window, Chinese text delivery, quick/custom messages, conversation clear, photo HTTP/download integrity and preview widget passed. This is not manual visual QA.
+- `pip check`, `git diff --check`, config-script syntax/Help and `.env` ignore check passed.
+- `scripts/doctor.ps1`: SIFLI_SDK_ROOT unavailable; no firmware build or board test was claimed.
+
+### Final state and next action
+
+- No model account was called or charged. No board/serial/flash action. Temporary backend processes were stopped after testing.
+- User reports the board has network functionality; await concrete transport, TLS, storage, microphone and memory interfaces tomorrow rather than carrying forward historical unverified network assumptions.
+- Request API keys via local configuration only and a bounded live-call budget, then verify real chat/reference generation and visual quality. Remaining production gaps include retention/quota management, deployment request limits, and real device integration.
+
+## 2026-11-03 - Correct locally entered model IDs
+
+- User requested inspection of model names entered during API configuration. A credential-shaped value was mistakenly stored in the chat model field; do not retain or repeat it in logs or documentation.
+- Selected `deepseek-flash` per current DeepSeek official documentation and `doubao-seedream-5-0-pro-260628` to match the user's Ark console screenshot. This is configuration selection, not verified account entitlement.
+- Added a model-only repair mode and credential-safe model format validation to `scripts/configure-ai.ps1`. Repair preserves API key values, image mode and unrelated settings.
+- No model generation, authenticated remote probe, billable call, firmware change, push or PR was requested or performed.
+
+## 2026-11-03 - Built-in pets and bounded live chat validation
+
+### Objective and scope
+
+- Continue the approved desktop AI work; prepare image generation without testing Seedream, and provide several built-in pet appearances.
+- Keep all source and outputs inside this product repository. No SDK, firmware or shared-repository changes.
+
+### Decisions and changes
+
+- Drew three original editable SVG candidates in `assets/source/default-pets`: nova-cat (default), biscuit-dog and mint-rabbit. No external artwork or paid generation used.
+- Added deterministic local PNG exports, preview sheet and hash manifest under ignored `assets/generated/default-pets`. Added authenticated catalog/download/appearance endpoints and SQLite selection persistence; appearance does not mutate core skin, EXP or persona.
+- Added offline default preview and saved-appearance load/save to the desktop client.
+- Added disabled-by-default `VELAPET_IMAGE_GENERATION_ENABLED` gate at the API and provider layer. The capability endpoint and desktop client avoid submitting disabled generation. Existing keys remain untouched.
+- Closed SQLite connections explicitly and serialized conversation clearing with in-flight chat handling.
+
+### Validation
+
+- Backend suite: 17 passed, one Starlette/httpx deprecation warning. New checks cover PNG dimensions/hash, catalog, persistence, token isolation and paid-generation denial even with a configured key.
+- Real loopback HTTP smoke and desktop smoke passed, including saved appearance reload. All temporary servers stopped.
+- Default pet exports completed and preview sheet visually inspected. Generated PNG alpha requires separate target-board decode/memory verification.
+- Exactly one live DeepSeek request using deepseek-flash passed, source=deepseek and error_code=null; returned a short Chinese NOVA greeting. No credential printed by the live checker.
+- Seedream real requests: zero; its existing offline contract test uses a fake transport only. No real image quality or account entitlement claim.
+- Git whitespace check passed. No firmware build/flash, serial or board action, commit, push or PR.
+
+### Remaining work
+
+- Obtain concrete board network/TLS APIs, storage and memory constraints, microphone PCM format, and current frontend events/fonts/layout.
+- Keep Seedream disabled until the user later approves real generation. Prototype generation pipeline is implemented but remains unverified against the real model.
+- Review default candidate artwork with frontend before finalizing deployed resources. Desktop defaults and metadata are not yet consumed by firmware.
+
+## 2026-11-03 - Frontend and hardware handoff checklists
+
+- Added `docs/handoff-frontend.md` and `docs/handoff-hardware.md` at the user's request. Each document separates implemented HTTP/core interfaces from proposed, unimplemented RT-Thread C service contracts.
+- Recorded current proof levels, prioritized counterpart deliverables, thread/buffer/ownership boundaries, default resource formats, staged acceptance and the disabled Seedream decision.
+- Rechecked referenced source fields, backend limits/routes and existing test evidence; checked local Markdown links and whitespace. Documentation only: no new model calls, firmware build/flash, commit, push or PR.
+
+## 2026-11-03 - Restore the legacy frontend AI bridge delivery
+
+- User relayed a blocking missing `velapet_ai_bridge.h` error in the historical frontend production build. Located the matching bridge/client headers and source in the legacy AI module; confirmed the chat and image call signatures.
+- Prepared `releases/velapet-legacy-ai-bridge-supplement.zip` with both AI headers, implementation, legacy core/UI declaration snapshots and host test. Added `docs/legacy-ai-bridge-supplement.md` distinguishing header lookup, link dependencies and the incompatible current RT-Thread/backend boundary.
+- This is a marked legacy supplement, not an implementation of the current product service and not added to firmware build sources. Historical input files remained unchanged.
+- Host bridge compiled with C11/Wall/Wextra/Werror and passed busy protection, cooldown, three mocked downloads, failure and shutdown checks. Client passed syntax check with cJSON declarations only. Full frontend/LVGL and board builds were not run; no real network/model request.
+- ZIP contains 11 expected files including both headers, no executable or local `.env`. No commit/push/PR. Migration to E: is still waiting for write access to the agreed target directory; current source remains safely in the existing C: clone.
+
+## 2026-11-03 - Upstream compatibility review and host AI PR preparation
+
+### Objective and scope
+
+- User authorized a PR after checking compatibility with the shared repository. Scope the change to the implemented host backend, desktop tools, default vector candidates and handoff documentation; do not claim device integration or auto-merge.
+
+### Decisions and changes
+
+- Migrated all repository/Git/local configuration files to the agreed E: main source folder with 179 SHA-256 comparisons and identical dirty-worktree status, excluded/rebuilt the non-portable Python environment, and reran tests there. C: duplicate removal was blocked by automatic policy; it remains preserved. Credentials are not displayed or committed.
+- Reviewed shared main 06f922e against c1f8930: only AGENTS.md changed. Imported the authenticated read-only GitHub snapshot with exact Git blob/tree/commit SHA verification and fast-forwarded locally after normal git fetch failed. No shared branch modified.
+- Updated handoffs for vp_net_*, vp_storage_*, velapet_service_* and vp_diag_* ownership. Existing C business/UI/build inputs remain unchanged; no legacy bridge implementation enters the product build.
+- Added explicit original-device-payload compatibility regression and invalid structured reply fallback checks. Fixed desktop conversation scope when configuration/persona changes. Documented remaining board and deployment limitations in docs/compatibility-review.md.
+
+### Validation
+
+- Backend regression: 23 passed, one Starlette/httpx test deprecation warning.
+- Local HTTP and desktop smoke passed, including persona switch opening a new conversation and persisted default appearance reload.
+- Five pure core unit-test groups passed. Dependency integrity, whitespace, default resource export and Markdown links checked.
+- No new paid provider request, firmware build/flash, serial or hardware operation. Full SDK build unavailable locally; firmware sources/build configuration are untouched.
+
+### PR boundary
+
+- Publish only reviewed source, SVG and documentation via personal fork feature branch, targeting shared main for review; exclude credentials, databases, generated PNGs, virtual environments, historical ZIP and tests' executables. Do not merge automatically.
+

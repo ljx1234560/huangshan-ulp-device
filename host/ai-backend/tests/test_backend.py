@@ -34,7 +34,7 @@ def test_health_and_local_fallback(tmp_path):
         response = client.post("/api/v1/chat", json=chat_body())
         assert response.status_code == 200
         assert response.json()["source"] == "local_fallback"
-        assert response.json()["error_code"] == "MIMO_NOT_CONFIGURED"
+        assert response.json()["error_code"] == "DEEPSEEK_NOT_CONFIGURED"
 
 
 def test_device_authentication(tmp_path):
@@ -88,7 +88,7 @@ def test_mimo_success_contract():
 
     async def run():
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
-            client = ChatProviderClient(Settings(mimo_api_key="test-only"), http)
+            client = ChatProviderClient(Settings(chat_provider="mimo", mimo_api_key="test-only"), http)
             result = await client.generate_reply(ChatRequest(**chat_body()))
             assert result.reply == "你好呀，一起动起来！"
 
@@ -101,7 +101,7 @@ def test_payment_error_degrades_to_local_reply():
 
     async def run():
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
-            client = ChatProviderClient(Settings(mimo_api_key="test-only"), http)
+            client = ChatProviderClient(Settings(chat_provider="mimo", mimo_api_key="test-only"), http)
             response = await build_reply(client, ChatRequest(**chat_body()))
             assert response.source == "local_fallback"
             assert response.error_code == "MIMO_PAYMENT_REQUIRED"

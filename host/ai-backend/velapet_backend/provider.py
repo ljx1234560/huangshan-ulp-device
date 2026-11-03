@@ -8,7 +8,7 @@ import httpx
 
 from .config import Settings
 from .models import ChatRequest, ReplyEmotion, ReplyIntent
-from .prompts import SYSTEM_PROMPT, build_user_prompt, sanitize_reply
+from .prompts import persona_prompt, build_user_prompt, sanitize_reply
 
 
 class ProviderError(RuntimeError):
@@ -190,6 +190,8 @@ class ChatProviderClient:
             try:
                 payload = json.loads(text[start : end + 1])
                 reply = payload["reply"]
+                if not isinstance(reply, str) or not reply.strip():
+                    raise ValueError("Structured reply must be nonempty text")
                 return ProviderReply(
                     sanitize_reply(reply, max_chars),
                     ReplyIntent(payload.get("intent", "chat")),
@@ -207,11 +209,12 @@ class ChatProviderClient:
             )
         return ProviderReply(cleaned, ReplyIntent.CHAT, ReplyEmotion.CHEERFUL)
 
-    def _request_payload(self, request: ChatRequest) -> dict[str, Any]:
+    def _request_payload(self, request: ChatRequest, history: list[dict[str, str]] | None = None) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": persona_prompt(request)},
+                *(history or []),
                 {"role": "user", "content": build_user_prompt(request)},
             ],
             "stream": False,
@@ -224,6 +227,6 @@ class ChatProviderClient:
             payload["max_completion_tokens"] = 256
         return payload
 
-    async def generate_reply(self, request: ChatRequest) -> ProviderReply:
-        data = await self._post(self._request_payload(request))
+    async def generate_reply(self, request: ChatRequest, history: list[dict[str, str]] | None = None) -> ProviderReply:
+        data = await self._post(self._request_payload(request, history))
         return self._parse_reply(self._message_content(data), request.max_chars)
