@@ -4,6 +4,7 @@
 #include "lvgl.h"
 #include "velapet_ui.h"
 #include "velapet_service.h"
+#include "ui_anim.h"
 
 typedef enum
 {

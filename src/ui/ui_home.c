@@ -40,6 +40,30 @@ static void skin_cb(lv_event_t *e)
     ui_nav_defer(velapet_ui_show_skin);
 }
 
+/* 宠物子树点击事件冒泡到舞台，统一由 tap 判别器处理（规格 A1/A2）。 */
+static void enable_event_bubble(lv_obj_t *obj)
+{
+    int32_t i;
+
+    lv_obj_add_flag(obj, LV_OBJ_FLAG_EVENT_BUBBLE);
+    for (i = 0; i < lv_obj_get_child_cnt(obj); i++)
+    {
+        enable_event_bubble(lv_obj_get_child(obj, i));
+    }
+}
+
+static void pet_single_cb(lv_obj_t *obj)
+{
+    ui_note_event("PET_TAP1");
+    ui_anim_happy(obj);
+}
+
+static void pet_double_cb(lv_obj_t *obj)
+{
+    ui_note_event("PET_TAP2");
+    ui_anim_dance(obj);
+}
+
 static const char *skin_display_name(const char *skin)
 {
     return ui_skin_display_name(skin);
@@ -63,6 +87,10 @@ void ui_home_create(void)
     s_pet_avatar = ui_create_pet_avatar(stage, 220, 176);
     lv_obj_center(s_pet_avatar);
     lv_obj_center(stage);
+    /* A1/A2：单击开心跳、双击跳舞；A4：待机呼吸。 */
+    enable_event_bubble(stage);
+    ui_anim_bind_tap(stage, pet_single_cb, pet_double_cb);
+    ui_anim_breathe(s_pet_avatar);
 
     lv_obj_t *info = lv_obj_create(g_ui_root);
     lv_obj_remove_style_all(info);
@@ -153,6 +181,7 @@ void ui_home_refresh(void)
 
 void ui_home_on_destroy(void)
 {
+    ui_anim_stop(s_pet_avatar);
     s_name = NULL;
     s_level = NULL;
     s_exp_text = NULL;

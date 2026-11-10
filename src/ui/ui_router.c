@@ -34,6 +34,8 @@ static void show_page(UiPage page, void (*create)(void))
     destroy_current();
     g_ui_page = page;
     create();
+    /* A9 切页淡入 + 横滑进入。 */
+    ui_anim_fade_in(g_ui_root, 24);
 }
 
 void ui_router_show_home(void)
@@ -73,4 +75,6 @@ void ui_router_reload(void)
     case UI_PAGE_HOME:
     default: ui_home_create(); break;
     }
+    /* A8 换肤重载后的整页淡入。 */
+    ui_anim_fade_in(g_ui_root, 0);
 }
