@@ -19,7 +19,11 @@ int main(void)
     }
 
     lv_ex_data_pool_init();
-    velapet_ui_create();
+    if (velapet_ui_init() != 0)
+    {
+        rt_kprintf("[ui-test] ui-init=FAIL\n");
+        return -1;
+    }
     rt_kprintf("[ui-test] init=PASS resolution=390x450\n");
 
     result = velapet_ble_init();

@@ -4,10 +4,14 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$outputDir = Join-Path $repoRoot 'test-results\unit'
-$testExe = Join-Path $outputDir 'velapet_core_test.exe'
+$outputDir = 'test-results\unit'
 
-New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+# 平台无关业务代码在主机上即可验证，无需烧录开发板。
+# 注意：全部使用相对路径，gcc 在 Windows 下处理含中文的绝对路径会失败。
+$testNames = @('velapet_core_test', 'velapet_service_test')
+$sources = @('src/app/velapet_core.c', 'src/app/velapet_service.c')
+
+New-Item -ItemType Directory -Path (Join-Path $repoRoot $outputDir) -Force | Out-Null
 
 function ConvertTo-WslPath([string]$Path) {
     $fullPath = [System.IO.Path]::GetFullPath($Path)
@@ -20,55 +24,75 @@ function ConvertTo-WslPath([string]$Path) {
     return "/mnt/$drive/$tail"
 }
 
-$compiler = Get-Command gcc -ErrorAction SilentlyContinue
-if ($null -ne $compiler) {
+function Invoke-NativeTests {
+    Push-Location $repoRoot
     try {
-        & $compiler.Source `
+        foreach ($name in $testNames) {
+            $testExe = Join-Path $outputDir "$name.exe"
+            & gcc `
+                -std=c11 `
+                -Wall `
+                -Wextra `
+                -Werror `
+                -pedantic `
+                -Isrc/app `
+                "tests/unit/$name.c" `
+                @sources `
+                -o $testExe
+
+            if ($LASTEXITCODE -ne 0) {
+                throw "Native unit-test compilation failed for $name (exit code $LASTEXITCODE)."
+            }
+
+            & (Join-Path '.' $testExe)
+            if ($LASTEXITCODE -ne 0) {
+                throw "Native unit tests failed for $name (exit code $LASTEXITCODE)."
+            }
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+function Invoke-WslTests {
+    $wslRoot = ConvertTo-WslPath $repoRoot
+    $wslSources = $sources | ForEach-Object { "$wslRoot/$_" }
+
+    foreach ($name in $testNames) {
+        $wslTest = "$wslRoot/test-results/unit/$name"
+
+        & wsl.exe -e gcc `
             -std=c11 `
             -Wall `
             -Wextra `
             -Werror `
             -pedantic `
-            "-I$(Join-Path $repoRoot 'src\app')" `
-            (Join-Path $repoRoot 'tests\unit\velapet_core_test.c') `
-            (Join-Path $repoRoot 'src\app\velapet_core.c') `
-            -o $testExe
+            "-I$wslRoot/src/app" `
+            "$wslRoot/tests/unit/$name.c" `
+            @wslSources `
+            -o $wslTest
 
         if ($LASTEXITCODE -ne 0) {
-            throw "Native unit-test compilation failed with exit code $LASTEXITCODE."
+            throw "WSL unit-test compilation failed for $name (exit code $LASTEXITCODE)."
         }
 
-        & $testExe
+        & wsl.exe -e $wslTest
         if ($LASTEXITCODE -ne 0) {
-            throw "Native unit tests failed with exit code $LASTEXITCODE."
+            throw "WSL unit tests failed for $name (exit code $LASTEXITCODE)."
         }
+    }
+}
+
+$compiler = Get-Command gcc -ErrorAction SilentlyContinue
+if ($null -ne $compiler) {
+    try {
+        Invoke-NativeTests
         return
     }
-    catch [System.Management.Automation.ResourceUnavailableException] {
-        Write-Warning "Native GCC could not start; falling back to WSL GCC. $($_.Exception.Message)"
+    catch {
+        Write-Warning "Native GCC path failed; falling back to WSL GCC. $($_.Exception.Message)"
     }
 }
 
-$wsl = Get-Command wsl.exe -ErrorAction Stop
-$wslRoot = ConvertTo-WslPath $repoRoot
-$wslTest = "$wslRoot/test-results/unit/velapet_core_test"
-
-& $wsl.Source -e gcc `
-    -std=c11 `
-    -Wall `
-    -Wextra `
-    -Werror `
-    -pedantic `
-    "-I$wslRoot/src/app" `
-    "$wslRoot/tests/unit/velapet_core_test.c" `
-    "$wslRoot/src/app/velapet_core.c" `
-    -o $wslTest
-
-if ($LASTEXITCODE -ne 0) {
-    throw "WSL unit-test compilation failed with exit code $LASTEXITCODE."
-}
-
-& $wsl.Source -e $wslTest
-if ($LASTEXITCODE -ne 0) {
-    throw "WSL unit tests failed with exit code $LASTEXITCODE."
-}
+Invoke-WslTests
