@@ -5,6 +5,7 @@
 #include "velapet_ui.h"
 #include "velapet_service.h"
 #include "ui_anim.h"
+#include "ui_skin_image.h"
 
 typedef enum
 {

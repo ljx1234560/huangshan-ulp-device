@@ -76,7 +76,7 @@ void ui_home_create(void)
     g_ui_root = ui_create_page();
     ui_create_title(g_ui_root, "VelaPet", 0);
 
-    /* 宠物舞台：接入整帧 JPG 场景图后，这里换成 lv_img。 */
+    /* 宠物舞台：优先整帧 JPG 场景图（VELAPET_UI_SKIN_IMAGES=1），否则几何替身 */
     lv_obj_t *hero = lv_obj_create(g_ui_root);
     lv_obj_remove_style_all(hero);
     lv_obj_set_size(hero, LV_PCT(100), 186);
@@ -84,7 +84,23 @@ void ui_home_create(void)
     lv_obj_remove_style_all(stage);
     lv_obj_set_size(stage, 220, 176);
     lv_obj_clear_flag(stage, LV_OBJ_FLAG_SCROLLABLE);
-    s_pet_avatar = ui_create_pet_avatar(stage, 220, 176);
+    {
+        const velapet_snapshot_t *snap = velapet_service_snapshot();
+        int skin_index = (snap != NULL)
+                             ? ui_skin_image_index_of(snap->current_skin) : -1;
+        const lv_img_dsc_t *full =
+            (skin_index >= 0) ? ui_skin_image_full((uint8_t)skin_index) : NULL;
+
+        if (full != NULL)
+        {
+            s_pet_avatar = lv_img_create(stage);
+            lv_img_set_src(s_pet_avatar, full);
+        }
+        else
+        {
+            s_pet_avatar = ui_create_pet_avatar(stage, 220, 176);
+        }
+    }
     lv_obj_center(s_pet_avatar);
     lv_obj_center(stage);
     /* A1/A2：单击开心跳、双击跳舞；A4：待机呼吸。 */
