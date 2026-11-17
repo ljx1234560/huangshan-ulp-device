@@ -742,6 +742,53 @@ Confirm the user's apparent phone connection to the official BLE Peripheral cont
 - The main collaboration risk is still the absence of an initial Git baseline and shared remote. The project lead should review `AGENTS.md`, decide the remote host and access model, then create the first commit before assigning parallel feature branches.
 - Final documentation consistency check passed: all 34 referenced local paths exist, Markdown code fences are balanced, no trailing whitespace was found, and no embedded secret pattern was detected in `AGENTS.md`.
 
+## 2026-11-17 - Firmware build and LVGL keyboard gate
+
+### Objective and scope
+
+- Run the product firmware build for the five-page UI handoff and check the `LV_USE_KEYBOARD` switch.
+- This was a host-side build check only; no board, serial port, or Flash operation was performed.
+
+### Findings and validation
+
+- In `E:\projects\huangshan-ulp-device`, `.\scripts\doctor.ps1` failed while activating the pinned SiFli-SDK environment. The installed `arm-none-eabi-gcc` 14.2.1 could not start due to Windows error 623 (invalid system DLL relocation); SDK export then reported no usable compiler installation.
+- `.\scripts\build.ps1` failed at the same environment activation step, before SCons and before any source compilation. No new firmware image was produced.
+- Directly invoking the installed `arm-none-eabi-gcc.exe --version` reproduced the same Windows error 623. No alternate compiler version is present under the configured tools directory.
+- The existing generated `project/build_sf32lb52-lchspi-ulp_hcpu/.config` contains `CONFIG_LV_USE_KEYBOARD=y` and `CONFIG_LV_USE_TEXTAREA=y`; its `rtconfig.h` contains `#define LV_USE_KEYBOARD 1` and `#define LV_USE_TEXTAREA 1`. These files date from November 3, before the current UI source files dated November 10, so they do not prove that the current five-page UI compiles.
+
+### Final state and next action
+
+- The board and Flash were untouched. The build gate remains blocked by the local compiler launch failure, not by a demonstrated UI compile error.
+- Restore a working pinned GCC toolchain or resolve the Windows loader error, then rerun `.\scripts\doctor.ps1` and `.\scripts\build.ps1`. Only after a successful build should the current image be considered for board validation; display, touch, keyboard interaction, and animation require separate on-device checks.
+
+## 2026-11-17 - Follow-up: font linkage fixed and firmware built
+
+### Decision and change
+
+- A direct GCC launch outside the restricted execution environment succeeded. The earlier Windows error 623 was specific to that environment, not a damaged installed toolchain.
+- The unrestricted firmware build reached linking and failed on unresolved `ui_font_cn_16` and `ui_font_cn_20` symbols. Both font sources already existed under `src/ui/fonts/`, but `src/SConscript` omitted that directory.
+- Added `Glob('ui/fonts/*.c')` to `src/SConscript`; no font data or UI behavior was changed.
+
+### Validation and final state
+
+- Reran `.\scripts\build.ps1` for `sf32lb52-lchspi-ulp`; it completed with exit code 0 and generated a new `project/build_sf32lb52-lchspi-ulp_hcpu/main.bin` (2,075,824 bytes, November 17 at 16:17 local time). The existing SDK and linker warnings were non-fatal.
+- The newly generated `.config` has `CONFIG_LV_USE_KEYBOARD=y` and `CONFIG_LV_USE_TEXTAREA=y`; `rtconfig.h` defines both as `1`. Both Chinese font objects were compiled and linked.
+- `git diff --check` passed. No flash, serial test, or physical display/touch/keyboard/animation validation was performed. The new image is ready for the team's reviewed board validation, which remains the next gate before discussing sensor and motion-model behavior on device.
+
+## 2026-11-17 - Five-page UI board bring-up started
+
+### Scope and preflight
+
+- Confirmed the attached board as USB-SERIAL CH340 on COM8 (`VID_1A86&PID_7523`). Before flashing, `ui_status` from the old image returned `WAITING taps=0`, and the board produced its normal boot log.
+- Confirmed the new 2,075,824-byte `main.bin` fits the 8 MiB HCPU code region at `0x12020000`; the 16 MiB factory backup remains at `releases/factory-20261022-full.bin` with SHA-256 `9425D8C0FC25BB8190956D842DE0377B011FF1B5F38DD6239E242220DECAF2C5`.
+
+### Flash and observed result
+
+- Ran `.\scripts\flash.ps1 -Port COM8 -Confirm` and accepted its built-in confirmation. The bootloader at `0x12010000` was unchanged; the new `main.bin` was written to `0x12020000` and verified; the generated flash table was written to `0x12000000` and verified. The command exited 0.
+- The flashed `main.bin` SHA-256 is `61BBF031EAC249DC456B125FE2E3836027B46ACCF920B1072E15EE0D4FB2C14F`.
+- After flashing, `.\scripts\serial-command.ps1 -Port COM8 -Command 'ui_status' -ReadSeconds 15` returned `[ui] status=WAITING taps=0 last=NONE`. This proves the new shell command runs; no UI touch event has yet been observed.
+- Display appearance, five-page navigation, physical touch, keyboard entry, and animations still require human observation. No sensor or motion-model conclusion was drawn from this firmware bring-up.
+
 ## 2026-11-17 - Reassign watch work and add Web management ownership
 
 ### Decision and change

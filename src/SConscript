@@ -3,7 +3,7 @@ from building import *
 
 cwd = GetCurrentDir()
 src = Glob('*.c') + Glob('app/*.c') + Glob('ui/*.c') + \
-    Glob('ui/assets/*.c') + Glob('services/*.c')
+    Glob('ui/assets/*.c') + Glob('ui/fonts/*.c') + Glob('services/*.c')
 
 group = DefineGroup(
     'Applications',
