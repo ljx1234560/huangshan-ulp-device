@@ -20,6 +20,8 @@ releases/*.hex
 releases/*.map
 host/ai-backend/.env
 host/ai-backend/runtime-data/
+# Tools importing the app from the repository root may resolve relative data here.
+/runtime-data/
 
 # IDE and operating-system files
 .vscode/*.log

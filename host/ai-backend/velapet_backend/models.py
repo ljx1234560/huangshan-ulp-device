@@ -58,6 +58,8 @@ class ChatRequest(BaseModel):
     locale: Literal["zh-CN", "en-US"] = "zh-CN"
     max_chars: int = Field(default=50, ge=16, le=80)
     context: PetContext
+    conversation_id: str | None = Field(default=None, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    persona_id: Literal["nova", "spark"] = "nova"
 
 
 class ReplyIntent(str, Enum):
@@ -91,6 +93,8 @@ class ChatResponse(BaseModel):
     reward: RewardDecision = Field(default_factory=RewardDecision)
     error_code: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
+    conversation_id: str | None = None
+    persona_id: str = "nova"
 
 
 class HealthResponse(BaseModel):

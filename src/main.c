@@ -6,6 +6,7 @@
 #include <lv_ex_data.h>
 
 #include "ble_service.h"
+#include "velapet_ai_chat.h"
 #include "velapet_ui.h"
 
 int main(void)
@@ -30,6 +31,11 @@ int main(void)
     if (result != RT_EOK)
     {
         rt_kprintf("[ble-test] init=FAIL code=%d\n", result);
+    }
+
+    if (velapet_ai_chat_init(vp_net_chat_platform()) != 0)
+    {
+        rt_kprintf("[ai-chat] worker=FAIL\n");
     }
 
     while (1)

@@ -2,29 +2,24 @@
 
 #include <string.h>
 
-#ifdef __RTTHREAD__
+#ifndef VELAPET_UI_AI_MOCK
+#include "velapet_ai_chat.h"
+#endif
+
 #include <rtthread.h>
 #define UI_AI_LOCK() rt_enter_critical()
 #define UI_AI_UNLOCK() rt_exit_critical()
-#else
-#define UI_AI_LOCK()
-#define UI_AI_UNLOCK()
-#endif
 
 #ifdef VELAPET_UI_AI_MOCK
 #include "lvgl.h"
 #endif
 
-#define UI_AI_DONE_DEPTH 4U
-
 static ui_ai_request_t s_pending;
 static int s_has_pending;
 static uint32_t s_inflight_id;
-static ui_ai_result_t s_done[UI_AI_DONE_DEPTH];
-static uint32_t s_done_head;
-static uint32_t s_done_count;
+static ui_ai_result_t s_done;
+static int s_has_done;
 static uint32_t s_next_request_id = 1U;
-static int s_service_seen; /* 服务取走过请求 = 已挂接 */
 
 #ifdef VELAPET_UI_AI_MOCK
 static uint32_t s_mock_submit_tick;
@@ -48,7 +43,7 @@ int ui_ai_mode(void)
 #ifdef VELAPET_UI_AI_MOCK
     return 1;
 #else
-    return s_service_seen ? 2 : 0;
+    return velapet_ai_chat_ready() ? 2 : 0;
 #endif
 }
 
@@ -56,6 +51,10 @@ ui_ai_submit_t ui_ai_submit(ui_ai_kind_t kind, const char *utf8_text)
 {
     ui_ai_submit_t result = UI_AI_SUBMIT_OK;
     size_t bytes;
+#ifndef VELAPET_UI_AI_MOCK
+    int online;
+    const velapet_snapshot_t *context;
+#endif
 
     if ((int)kind < 0 || kind >= UI_AI_KIND_COUNT)
     {
@@ -77,9 +76,16 @@ ui_ai_submit_t ui_ai_submit(ui_ai_kind_t kind, const char *utf8_text)
         return UI_AI_SUBMIT_INVALID; /* 超 240 字（720 字节上限） */
     }
 
+#ifndef VELAPET_UI_AI_MOCK
+    online = velapet_ai_chat_ready();
+    /* App snapshot belongs to the LVGL/main thread. Capture it before handing off. */
+    context = online ? velapet_service_snapshot() : NULL;
+#endif
     UI_AI_LOCK();
+    if (s_next_request_id == 0U)
+        s_next_request_id = 1U;
 #ifdef VELAPET_UI_AI_MOCK
-    if (s_inflight_id != 0U)
+    if (s_inflight_id != 0U || s_has_done)
     {
         result = UI_AI_SUBMIT_BUSY;
     }
@@ -90,9 +96,13 @@ ui_ai_submit_t ui_ai_submit(ui_ai_kind_t kind, const char *utf8_text)
         s_mock_submit_tick = (uint32_t)lv_tick_get();
     }
 #else
-    if (s_inflight_id != 0U)
+    if (s_inflight_id != 0U || s_has_done)
     {
         result = UI_AI_SUBMIT_BUSY;
+    }
+    else if (!online || context == NULL)
+    {
+        result = UI_AI_SUBMIT_OFFLINE;
     }
     else
     {
@@ -104,6 +114,7 @@ ui_ai_submit_t ui_ai_submit(ui_ai_kind_t kind, const char *utf8_text)
         {
             memcpy(s_pending.text, utf8_text, bytes);
         }
+        velapet_ai_chat_capture(s_pending.request_id, context);
         s_has_pending = 1;
         s_inflight_id = s_next_request_id;
         s_next_request_id++;
@@ -123,11 +134,10 @@ int ui_ai_poll_result(ui_ai_result_t *out)
     }
 
     UI_AI_LOCK();
-    if (s_done_count > 0U)
+    if (s_has_done)
     {
-        *out = s_done[s_done_head];
-        s_done_head = (s_done_head + 1U) % UI_AI_DONE_DEPTH;
-        s_done_count--;
+        *out = s_done;
+        s_has_done = 0;
         found = 1;
     }
     UI_AI_UNLOCK();
@@ -163,6 +173,7 @@ void ui_ai_cancel_pending(void)
     UI_AI_LOCK();
     s_has_pending = 0;
     s_inflight_id = 0U;
+    s_has_done = 0;
     UI_AI_UNLOCK();
 }
 
@@ -181,7 +192,6 @@ int ui_ai_bridge_take_request(ui_ai_request_t *out)
         *out = s_pending;
         s_has_pending = 0;
         found = 1;
-        s_service_seen = 1;
     }
     UI_AI_UNLOCK();
     return found;
@@ -198,10 +208,10 @@ int ui_ai_bridge_push_result(const ui_ai_result_t *in)
 
     UI_AI_LOCK();
     if (s_inflight_id != 0U && in->request_id == s_inflight_id &&
-        s_done_count < UI_AI_DONE_DEPTH)
+        !s_has_done)
     {
-        s_done[(s_done_head + s_done_count) % UI_AI_DONE_DEPTH] = *in;
-        s_done_count++;
+        s_done = *in;
+        s_has_done = 1;
         s_inflight_id = 0U;
         accepted = 1;
     }

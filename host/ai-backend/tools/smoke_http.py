@@ -14,6 +14,9 @@ import httpx
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from velapet_backend.chat_relay import ChatRelayClient
 
 
 def main() -> int:
@@ -30,6 +33,10 @@ def main() -> int:
             VELAPET_DATA_ROOT=temp,
             VELAPET_DEVICE_TOKENS="smoke-device-token",
             MIMO_API_KEY="",
+            DEEPSEEK_API_KEY="",
+            ARK_API_KEY="",
+            VELAPET_IMAGE_PROVIDER="demo",
+            VELAPET_CHAT_PROVIDER="mimo",
         )
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
         process = subprocess.Popen(
@@ -50,7 +57,7 @@ def main() -> int:
             creationflags=flags,
         )
         try:
-            with httpx.Client(timeout=5.0, follow_redirects=False) as client:
+            with httpx.Client(timeout=5.0, follow_redirects=False, trust_env=False) as client:
                 deadline = time.monotonic() + 15.0
                 while True:
                     try:
@@ -77,7 +84,10 @@ def main() -> int:
                 data = response.json()
                 assert data["source"] == "local_fallback"
                 assert data["error_code"] == "MIMO_NOT_CONFIGURED"
-                print("AI_HTTP_SMOKE result=PASS auth=PASS fallback=PASS")
+                relayed = ChatRelayClient(base_url, "smoke-device-token").exchange(27, payload)
+                assert relayed["request_id"] == 27 and relayed["source"] == "local_fallback"
+                assert relayed["reply"]
+                print("AI_HTTP_SMOKE result=PASS auth=PASS fallback=PASS relay=PASS")
                 return 0
         finally:
             process.terminate()

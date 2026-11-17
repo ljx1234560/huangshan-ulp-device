@@ -40,7 +40,7 @@ class Settings:
     data_root: Path = field(default_factory=lambda: Path("runtime-data"))
     device_tokens: frozenset[str] = field(default_factory=frozenset)
     chat_rate_limit_per_minute: int = 20
-    chat_provider: str = "mimo"
+    chat_provider: str = "deepseek"
 
     mimo_api_key: str = ""
     mimo_api_base_url: str = "https://api.xiaomimimo.com/v1"
@@ -51,9 +51,20 @@ class Settings:
     deepseek_api_base_url: str = "https://api.deepseek.com"
     deepseek_chat_model: str = "deepseek-flash"
     deepseek_timeout_seconds: float = 30.0
+    image_provider: str = "demo"
+    image_generation_enabled: bool = False
+    ark_api_key: str = ""
+    ark_api_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
+    seedream_model: str = "doubao-seedream-5-0-flash-260915"
 
     @classmethod
     def from_env(cls) -> "Settings":
+        ark_key = os.getenv("ARK_API_KEY", "").strip()
+        ark_base = os.getenv("ARK_API_BASE_URL", "").strip()
+        ark_model = os.getenv("ARK_IMAGE_MODEL", "").strip()
+        # An explicitly configured Ark trio enables Seedream unless the operator
+        # selects demo or explicitly disables paid generation.
+        ark_selected = bool(ark_key and ark_base and ark_model)
         return cls(
             host=os.getenv("VELAPET_HOST", "127.0.0.1").strip(),
             port=_env_int("VELAPET_PORT", 8000),
@@ -62,7 +73,7 @@ class Settings:
             chat_rate_limit_per_minute=_env_int(
                 "VELAPET_CHAT_RATE_LIMIT_PER_MINUTE", 20
             ),
-            chat_provider=os.getenv("VELAPET_CHAT_PROVIDER", "mimo").strip().lower(),
+            chat_provider=os.getenv("VELAPET_CHAT_PROVIDER", "deepseek").strip().lower(),
             mimo_api_key=os.getenv("MIMO_API_KEY", "").strip(),
             mimo_api_base_url=os.getenv(
                 "MIMO_API_BASE_URL", "https://api.xiaomimimo.com/v1"
@@ -79,6 +90,11 @@ class Settings:
                 "DEEPSEEK_CHAT_MODEL", "deepseek-flash"
             ).strip(),
             deepseek_timeout_seconds=_env_float("DEEPSEEK_TIMEOUT_SECONDS", 30.0),
+            image_provider=os.getenv("VELAPET_IMAGE_PROVIDER", "seedream" if ark_selected else "demo").strip().lower(),
+            image_generation_enabled=os.getenv("VELAPET_IMAGE_GENERATION_ENABLED", "true" if ark_selected else "false").strip().lower() == "true",
+            ark_api_key=ark_key,
+            ark_api_base_url=ark_base or "https://ark.cn-beijing.volces.com/api/v3",
+            seedream_model=ark_model or os.getenv("SEEDREAM_MODEL", "doubao-seedream-5-0-flash-260915").strip(),
         )
 
     @property
@@ -86,6 +102,8 @@ class Settings:
         return bool(self.device_tokens)
 
     def validate_bind(self) -> None:
+        if self.image_provider not in {"demo", "seedream"}:
+            raise ValueError("VELAPET_IMAGE_PROVIDER must be demo or seedream")
         if not 1 <= self.port <= 65535:
             raise ValueError("VELAPET_PORT must be between 1 and 65535")
         if self.chat_rate_limit_per_minute < 1:

@@ -1,5 +1,7 @@
 # VelaPet AI backend
 
+See [聊天信箱与生图联调](../../docs/ai-main-integration-handoff.md) for local image configuration and API paths.
+
 This is the product-owned, text-chat subset migrated from the historical member
 five delivery. The model API key stays here; firmware receives only a distinct
 device token and calls `POST /api/v1/chat`.
@@ -52,5 +54,6 @@ The current account inspection on 2026-10-25 listed `mimo-v2.6-flash`,
 specific and may change. The backend default is therefore configuration, not a
 guarantee of entitlement.
 
-This slice intentionally omits image generation. It must not be reintroduced
-until text chat, board IP transport, storage, and image decoding are proven.
+The default chat provider is now DeepSeek. The desktop prototype also supports
+bounded conversation history and photo jobs (demo or configured Seedream).
+These host features do not prove board networking, storage, fonts, or image decoding.

@@ -742,3 +742,15 @@ Confirm the user's apparent phone connection to the official BLE Peripheral cont
 - The main collaboration risk is still the absence of an initial Git baseline and shared remote. The project lead should review `AGENTS.md`, decide the remote host and access model, then create the first commit before assigning parallel feature branches.
 - Final documentation consistency check passed: all 34 referenced local paths exist, Markdown code fences are balanced, no trailing whitespace was found, and no embedded secret pattern was detected in `AGENTS.md`.
 
+
+## 2026-11-17 - 冻结 UI 聊天信箱并接入方舟生图
+
+### 修改
+- 核对 main 5863e0a 的前端答疑；保留 ui_ai_bridge.h。正式模式由 AI 线程按值取件和回填，使用 UI 请求 ID，携带提交时的业务快照；修正未就绪时收单、切页后残留回包的问题。
+- 新增 vp_net_chat 适配器入口和 Windows 中继可复用的后端 REST 客户端。硬件适配器缺省为空。
+- 接入 SeedreamProviderClient，读取方舟配置并兼容旧模型变量。生成图解码、原子写入后发布 SHA-256 清单；下载前复核大小与 SHA-256。
+
+### 验证
+- 后端 pytest 33 项通过；模拟方舟 200、三种产物下载和同长度篡改已覆盖。临时回环 HTTP smoke 的鉴权、降级、REST 中继通过，无真实模型调用。
+- scripts/test-ai-mailbox.ps1 两种模式通过；scripts/test-unit.ps1 通过 core 5 例与 service 6 例。
+- 运行 doctor 和完整构建时均因本机缺少锁定的 SiFli SDK 配置而停止。未烧录。当前 main 缺硬件组已跑通的 BLE 中继与固件源码，真机 BLE 和图片落盘仍待联调。
