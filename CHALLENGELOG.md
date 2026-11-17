@@ -802,3 +802,57 @@ Confirm the user's apparent phone connection to the official BLE Peripheral cont
 - Reviewed the responsibility table and related rules, and ran `git diff --check` for the documentation change. No firmware build or board test was needed for this documentation-only update.
 - Existing uncommitted firmware and board bring-up changes were preserved and excluded from this assignment update.
 
+## 2026-11-17 - Motion model core (platform-independent)
+
+### Objective and scope
+
+- Add the first slice of the VelaPet motion model: a pure C, OS-free activity state machine between the sensor adapter and `velapet_service`.
+- Out of scope: RT-Thread sensor adapter, diagnostics commands, task/reward integration, persistence, reminder UI, gyro gestures, and any board flashing.
+
+### Decisions and changes
+
+- Added `src/app/velapet_motion.h` and `src/app/velapet_motion.c`. Callers feed timestamped 25 Hz acceleration samples, 16-bit step-counter readings, and ambient-light raw counts. The model outputs activity state, wear state, daily step/active-minute/continuous-walk counters, sedentary duration, and event bits (`ACTIVE_MINUTE`, `WALK_MINUTE`, `SEDENTARY`, `INACTIVITY`).
+- The step counter is treated as the primary source. Wrapped deltas are accepted; deltas above 500 per read are discarded as counter reset or glitch, and the baseline is re-established. The model exposes pending step deltas for batched `velapet_service_record_steps()` calls.
+- Sedentary timing resets on walking or when 60-second steps reach the configured threshold. Removing the watch (still plus uncalibrated light threshold, disabled by default) pauses and clears the sedentary timer; light-based wear detection stays off until the raw threshold is measured.
+- No existing public interface changed. The file is picked up by the existing `src/SConscript` glob for `src/app/*.c`.
+- Added `tests/unit/velapet_motion_test.c` and registered it, with `src/app/velapet_motion.c`, in `scripts/test-unit.ps1`.
+
+### Validation
+
+- Ran `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-unit.ps1`; native GCC was unavailable so the script used its WSL GCC fallback. `VELAPET_CORE_TEST result=PASS cases=5`, `VELAPET_SERVICE_TEST result=PASS cases=6`, and `VELAPET_MOTION_TEST result=PASS cases=7`.
+- `git diff --check` passed.
+- Firmware build not run: this clone has no `.env.local.ps1`, so `SIFLI_SDK_ROOT`/toolchain activation is unavailable. No board, serial port, or Flash operation was performed.
+
+### Final state and risks
+
+- The motion model is host-verified only; thresholds are initial defaults and still need real sensor traces from the board.
+- Step-counter semantics (wrap, reset on reboot, per-read limits) remain unverified on hardware; the 500-step guard assumes a poll interval of about 2 seconds.
+- Next: sensor adapter and bounded diagnostics for step-counter validation, then service integration and reminder policy.
+
+## 2026-11-17 - Motion model system design and handoff
+
+### Objective and scope
+
+- Turn the motion-model discussion into a complete system document and a task-level handoff for the watch/frontend and backend owners.
+- The physical board work is assigned to the frontend/watch owner; this change delivers design, the platform-independent core, and work orders only.
+
+### Decisions and changes
+
+- Added `docs/motion-model.md`: sensor input matrix, sampling configuration, one-second feature pipeline, activity state machine with hysteresis, step-counter wrap/reset model, task/reward mapping, sedentary and inactivity reminder policy, persistence fields, proposed interfaces, threading, power strategy, failure handling, validation plan, roadmap, ownership, and risks.
+- Added `docs/motion-handoff.md`: frozen API list, frontend tasks FE-1..FE-7, backend tasks BE-1..BE-2, integration tasks INT-1..INT-2, acceptance criteria, validation commands, definition of done, branch conventions, and coordination risks.
+- Proposed a fifth cross-layer interface `vp_sensor_*` for sampling. It is explicitly marked as requiring PR review before adoption; `AGENTS.md` was not changed in this commit.
+- Documented the current gap that `velapet_motion_*` has no restore-day API, and listed it as required for the P2 persistence task.
+- The existing `velapet_motion.h/.c` and host tests are included in the same change set as the design they implement.
+
+### Validation
+
+- `VELAPET_CORE_TEST result=PASS cases=5`, `VELAPET_SERVICE_TEST result=PASS cases=6`, `VELAPET_MOTION_TEST result=PASS cases=7` via the WSL GCC fallback.
+- `git diff --check` passed for the documentation and source changes.
+- No firmware build, board access, serial command, or Flash operation was performed. No real sensor data was collected.
+
+### Final state and risks
+
+- Design and host-verified core are ready for review and handoff; thresholds and step-counter behavior remain unvalidated on hardware.
+- The main coordination item is approving or rejecting `vp_sensor_*`; the design and handoff both treat it as pending approval.
+- Next: frontend demonstrates step-counter semantics and records golden traces before claiming motion-related task or reminder functionality.
+
