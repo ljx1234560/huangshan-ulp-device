@@ -742,3 +742,16 @@ Confirm the user's apparent phone connection to the official BLE Peripheral cont
 - The main collaboration risk is still the absence of an initial Git baseline and shared remote. The project lead should review `AGENTS.md`, decide the remote host and access model, then create the first commit before assigning parallel feature branches.
 - Final documentation consistency check passed: all 34 referenced local paths exist, Markdown code fences are balanced, no trailing whitespace was found, and no embedded secret pattern was detected in `AGENTS.md`.
 
+## 2026-11-17 - Reassign watch work and add Web management ownership
+
+### Decision and change
+
+- Reassigned the former member two business and local-state responsibilities, together with member three's UI responsibilities, to member three as one watch-side module.
+- Assigned member two the Web management module for synchronized watch information: personal usage trends and product content for users, plus aggregated usage statistics and analysis for management staff.
+- Updated `AGENTS.md` ownership, module boundaries, cross-module data contract, directory plan, capacity allocation, and branch naming. This is a responsibility change only; no Web feature or synchronization endpoint was implemented.
+
+### Validation and final state
+
+- Reviewed the responsibility table and related rules, and ran `git diff --check` for the documentation change. No firmware build or board test was needed for this documentation-only update.
+- Existing uncommitted firmware and board bring-up changes were preserved and excluded from this assignment update.
+
