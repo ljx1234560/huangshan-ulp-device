@@ -53,6 +53,7 @@ cd E:\projects\huangshan-ulp-device
 - `scripts/`：环境、构建、烧录、串口和自动检查。
 - `tests/`：单元测试与硬件在环测试。
 - `docs/`：架构、上电、测试和权限说明。
+- `host/web/`：Vue 用户端与管理端、FastAPI 数据服务、Windows BLE 桥接及主机可测的同步协议候选代码；不直接修改设备权威状态。
 
 当前固件已启动 LVGL 交互页和 `VelaPet-BLE` 自定义 GATT 诊断服务；它还没有通过 ESP-01S 或 Bluetooth PAN 接入互联网。`src/app/velapet_core.*` 已提供不依赖 RT-Thread、文件系统和网络的离线宠物/任务/奖励规则，并可通过 `.\scripts\test-unit.ps1` 在主机验证；该核心尚未绑定到当前演示 UI 或持久化层。产品自有的最小文本 AI 后端位于 `host/ai-backend/`，支持 DeepSeek、MiMo、设备 Token、限流和本地降级，可用 `.\scripts\test-ai-backend.ps1` 验证。主机端已用低成本 `deepseek-flash` 完成一次真实短文本回复；开发板仍需独立完成 IP 网络链路。硬件证据见 `docs/hardware-validation.md`，AI 后端接口与端侧迁移路线见 `docs/ai-integration.md`。历史 `member_code` 仅作为迁移参考，不是当前可直接烧录的 RT-Thread 应用。
 

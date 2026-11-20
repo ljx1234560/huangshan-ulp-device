@@ -856,3 +856,33 @@ Confirm the user's apparent phone connection to the official BLE Peripheral cont
 - The main coordination item is approving or rejecting `vp_sensor_*`; the design and handoff both treat it as pending approval.
 - Next: frontend demonstrates step-counter semantics and records golden traces before claiming motion-related task or reminder functionality.
 
+## 2026-11-20 - Integrate VelaPet Web platform
+
+### Objective and scope
+
+- Add the completed VelaPet user dashboard, operations admin, FastAPI data service, Windows BLE bridge, protocol tests, migrations, and integration documentation under the established `host/web/` ownership boundary.
+- Preserve all existing SF32LB52 firmware, hardware, board, project, and AI backend files. This change does not claim real-device BLE validation or PostgreSQL runtime validation.
+
+### Decisions and changes
+
+- Added the pnpm workspace with Vue user/admin applications and shared TypeScript API/types packages.
+- Added the FastAPI/SQLAlchemy service, Alembic migrations, Docker Compose development configuration, Demo-labelled seed data, authentication/RBAC, device uploads, pet data, and admin statistics.
+- Added the Windows Bleak bridge, Fake/transport tests, BLE Sync v1 documentation, and platform-independent candidate C modules under `host/web/firmware/`; the candidate modules were not copied into product `src/` and still require cross-line review and hardware integration.
+- Strengthened `host/web/.gitignore` for local environments, caches, databases, logs, generated builds, and credential-bearing files. Only example environment files with development placeholders are included.
+- Updated the root README directory map and adjusted Web documentation commands for the repository-relative `host/web/` location.
+
+### Validation
+
+- `pnpm install --frozen-lockfile`: passed for all five workspace projects.
+- `pnpm typecheck`: passed for four applicable workspace projects.
+- `pnpm test`: 6 tests passed; the two Vue apps intentionally have no direct Vitest files and use `--passWithNoTests`.
+- `pnpm build`: user and admin production builds passed; the existing Vite warning for chunks larger than 500 kB remains.
+- FastAPI: `14 passed` using the existing isolated Python environment against the moved `host/web/server/tests` tree.
+- BLE bridge: `21 passed` using the moved `host/web/tools/ble-bridge/tests` tree.
+- Firmware build and board tests were not run because no product firmware file changed. PostgreSQL runtime validation was not run because Docker/psql are unavailable on this machine.
+
+### Final state and risks
+
+- The Web platform is ready for branch review under `host/web/`; no generated `dist`, `node_modules`, Python virtual environment, cache, local database, real `.env`, API key, private key, or access token is part of the change.
+- Real SF32LB52 GATT integration, physical device identity confirmation, BLE radio testing, Flash persistence, and PostgreSQL runtime acceptance remain separate follow-up gates.
+

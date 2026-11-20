@@ -1,0 +1,21 @@
+{
+  "name": "velapet-web",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev:user": "pnpm --filter @velapet/user dev",
+    "dev:admin": "pnpm --filter @velapet/admin dev",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "server:dev": "server\\.venv\\Scripts\\python.exe -m uvicorn app.main:app --reload --app-dir server --port 8000",
+    "server:test": "server\\.venv\\Scripts\\python.exe -m pytest server\\tests"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.13"
+  }
+}
