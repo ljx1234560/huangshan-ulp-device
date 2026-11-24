@@ -62,7 +62,8 @@ def main():
                     raise ValueError("provider image too large")
                 raw.extend(chunk)
     image = decode_image(bytes(raw))
-    (args.output / "generated.png").write_bytes(raw)
+    (args.output / "generated.bin").write_bytes(raw)
+    image.save(args.output / "preview.png", format="PNG")
     report.update(image_url=url, width=image.width, height=image.height,
                   byte_size=len(raw), sha256=hashlib.sha256(raw).hexdigest(),
                   elapsed_seconds=round(time.monotonic() - started, 2))

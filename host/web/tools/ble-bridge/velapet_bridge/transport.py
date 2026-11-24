@@ -274,6 +274,22 @@ class BleakTransport(BleTransport):
             elif message.message_type == MessageType.SYNC_COMPLETE:
                 return
 
+    async def chat_messages(self) -> AsyncIterator[Message]:
+        """Consume the existing validated, bounded reassembly queue."""
+        while self.connected:
+            yield await self._next_message()
+
+    async def send_chat_frames(self, frames: list[bytes]) -> None:
+        if not self.connected:
+            raise ConnectionError("BLE device disconnected")
+        for frame in frames:
+            await self._client.write_gatt_char(CONTROL_UUID, frame, response=True)
+
+    @property
+    def max_frame_size(self) -> int:
+        return max(20, int(getattr(self._client, "mtu_size", 23)) - 3)
+
+
     async def ack(self, session_id: int, sequence: int, cursor: int) -> None:
         await self._write(
             MessageType.ACK,

@@ -925,3 +925,12 @@ Confirm the user's apparent phone connection to the official BLE Peripheral cont
 - 后端 pytest 33 项通过；模拟方舟 200、三种产物下载和同长度篡改已覆盖。临时回环 HTTP smoke 的鉴权、降级、REST 中继通过，无真实模型调用。
 - scripts/test-ai-mailbox.ps1 两种模式通过；scripts/test-unit.ps1 通过 core 5 例与 service 6 例。
 - 运行 doctor 和完整构建时均因本机缺少锁定的 SiFli SDK 配置而停止。未烧录。当前 main 缺硬件组已跑通的 BLE 中继与固件源码，真机 BLE 和图片落盘仍待联调。
+
+## 2026-11-24 - 共同仓库交付、真实 ARK 生图与 BLE 聊天中继
+
+- 将 de0deed 生图及聊天代码推至共同仓库 member-4/cloud-ui-seedream 分支，并同步 main 5eb4239。变更日志冲突以追加方式保留双方内容。
+- 真实调用一次 doubao-seedream-5-0-pro-260628，HTTP 200，耗时 66.24 秒。1024×1024 图片下载 137085 字节，解码及 SHA-256 校验成功。签名 URL 和图片仅存本机 test-results，不将模型 Key 或签名下载地址提交到 Git。
+- 新增一次调用工具 live_image_check.py，URL 响应后下载并校验图像。
+- 复用 host/web/tools/ble-bridge 的 v1 分片和 4 条/64 KiB 重组队列，新增 chat CLI、聊天消息映射、HTTP 中继、UI ID 回填、重复结果缓存与按片 NACK 重发。新增 ai_chat_v1 扩展需端侧联合评审。
+- 桥接 24 项测试通过，含现有 21 项及聊天默认 MTU、乱序重组、重复请求、NACK、local_fallback、HTTP 超时用例。
+- 当前没有连接或烧录开发板。新 GATT、设备聊天编码和能力位尚需集成，真机链路待验收。完整固件构建依赖未配置的锁定 SiFli SDK。

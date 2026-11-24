@@ -42,6 +42,7 @@ class MessageType(IntEnum):
     SYNC_START = 0x10
     ACK = 0x11
     NACK = 0x12
+    CHAT_RESULT = 0x30
     GET_PET_SNAPSHOT = 0x20
     PING = 0x7E
     CANCEL = 0x7F
@@ -51,6 +52,7 @@ class MessageType(IntEnum):
     MOTION_STATUS = 0x83
     HISTORY_RECORDS = 0x90
     SYNC_COMPLETE = 0x91
+    CHAT_REQUEST = 0xB0
     PET_SNAPSHOT = 0xA0
     ERROR = 0xE0
 

@@ -10,7 +10,7 @@
 
 Windows GATT 桥接收到完整请求后可复用 host/ai-backend/velapet_backend/chat_relay.py 的 ChatRelayClient.exchange(ui_request_id, payload)。payload 使用 /api/v1/chat 的 schema，带 device_id、prompt_type、message、上下文和 max_chars；不要从 total_steps 推导今日步数。回包 source 为 cloud、local_fallback 或 error，按冻结头文件映射枚举；字符串字段按 UTF‑8 编码、NUL 终止。只有会话 ID 原样合法可容纳时才回传。传输权限、GATT UUID、分片和重连规则以组员一已验收的实现为准。
 
-当前 main 的 BLE 文件只有 4 字节诊断特征，未包含硬件交接提及的 host/ble-ai-bridge/bridge.py 和对应固件源码。本交付刻意保留其诊断通道，请组员一或负责人提供跑通版本和分片约定后再绑定适配器。板型以 sdk.lock 为准：sf32lb52-lchspi-ulp，不使用答疑里写的 T113S3。工作线程栈 4096 字节是初始配置，需与实际 BLE 适配器一起测高水位。
+2026-11-24 已读取 main 5eb4239 的 host/web/docs/BLE_SYNC_PROTOCOL.md 与 host/web/tools/ble-bridge。Windows 通过新增 chat 模式直接消费原重组队列，调用 ChatRelayClient 并按原 session/sequence 分片发回。重复请求复用最近 4 条结果，NACK 按片重发。聊天消息扩展和设备能力位见该协议第 12 节，需硬件/手表端评审接入。现成协议覆盖历史同步，聊天消息为本次新增。板型以 sdk.lock 的 sf32lb52-lchspi-ulp 为准。
 
 ## 生图联调
 

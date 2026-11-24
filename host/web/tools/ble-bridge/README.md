@@ -20,3 +20,9 @@ tools\ble-bridge\.venv\Scripts\velapet-bridge.exe sync `
 设备绝对游标、HTTP 上传偏移、ACK 游标和数据库持久化游标是四个独立概念。桥接不会再把非零设备游标直接当成新 HTTP 任务偏移。
 
 完整协议见 `docs/BLE_SYNC_PROTOCOL.md`。没有手表时使用测试中的 `FakeBleTransport`，但 Fake 测试不是真机 BLE 证据。
+
+## 手表 AI 聊天
+
+在同一源码仓库中安装 host/ai-backend/requirements.txt 和本桥接包，再启动 AI 后端。使用 velapet-bridge chat --address <scan返回的地址> --serial <绑定设备序列号> --api-url http://127.0.0.1:8000 运行聊天中继。设备 Token 从 VELAPET_RELAY_TOKEN 环境变量读取，未设置时终端隐藏输入。模型 Key 留在 AI 后端。
+
+chat 模式复用现有分片和 CRC/NACK，实现已完成请求缓存、默认 MTU 的完整 UTF-8 截短及 UI request_id 对齐。设备需要提供 BLE_SYNC_PROTOCOL.md 第 12 节的 ai_chat_v1 能力位和两个消息类型。正式 GATT 和能力位的真机验证仍由硬件/手表端共同完成。

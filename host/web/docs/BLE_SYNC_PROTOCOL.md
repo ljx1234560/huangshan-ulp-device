@@ -183,3 +183,17 @@ Windows 桥接为每个 BLE 批次生成稳定的 `uploadId`，HTTP `uploadOffse
 候选实现使用 128 条、约 4 KiB 的有界 RAM 环形缓存。缓存满时返回 HISTORY_FULL，绝不覆盖未 ACK 记录。普通 BLE 断开不会清空缓存。
 
 Flash 持久化建议把记录按 16–32 条批量写入 append-only page，并使用双元数据页（generation、head、tail、CRC）轮换提交，避免逐步写 Flash。只有在板上文件系统或原始 Flash 区域经过擦写边界、同步、原子切换和掉电注入测试后才能启用。当前硬件证据仍显示文件系统不可用，因此本阶段不宣称断电恢复已经完成。
+
+## 12. AI 聊天扩展 ai_chat_v1（组员四，待端侧联合评审）
+
+沿用 v1 Header、CRC、分片、重组上限及 NACK。设备 PROTOCOL_INFO 的 capabilities 中出现 ai_chat_v1 后，桥接启用聊天。新增消息 0xb0 CHAT_REQUEST（设备 Data Notify → Windows）和 0x30 CHAT_RESULT（Windows → Control Write）。请求和回复沿用 session_id 与 sequence，cursor=0。历史同步和聊天使用独立桥接运行模式，单连接由一个消费者收件。
+
+CHAT_REQUEST UTF-8 JSON 示例为 {"request_id":42,"body":{"device_id":"VP-1","prompt_type":"greeting","message":"","max_chars":50,"context":{"pet_name":"NOVA","level":1}}}。request_id 是冻结信箱的 u32 UI ID，body 使用 AI 后端 ChatRequest，context 来自提交时复制的业务快照。桥接连接时检查设备 serial，HTTP 的 device_id 强制采用配置的授权 serial。
+
+CHAT_RESULT 为 {"request_id":42,"source":"cloud","error_code":0,"reply":"你好","intent":"greeting","emotion":"gentle","conversation_id":"","persona_id":"nova"}。source 使用 cloud/local_fallback/error，设备适配器映射到 ui_ai_source_t，再调用 ui_ai_bridge_push_result()。网络错误 -1=超时、-2=离线、-3=无效响应。上游 HTTP 200 的 local_fallback 保留可渲染回复。HTTP 用服务器字符串 ID 关联日志，UI 用 u32 ID 丢弃迟到结果。
+
+请求最多 4096 字节，重组继续使用 4 条/64 KiB 上限。默认 MTU=23 一条最多承载 510 字节，回复必要时清空可选会话/人设 ID，然后按完整 Unicode 字符缩短。设备发送请求前也应检查 255 片上限，自由输入的大请求需要更高协商 MTU。
+
+Windows 保留最近 4 条请求摘要及回复帧，相同 session/sequence、相同 payload 重发缓存结果，避免再次调用模型。相同键但 payload 不同则拒绝。设备对结果 NACK 时按 sequence/index 重发原片，每片最多重传三次。连接结束清空缓存。跨重连没有自动重试聊天请求。
+
+当前完成主机分片与 HTTP 回环验证。正式 GATT 注册、设备请求编码、ai_chat_v1 能力位和结果入箱仍需在 SF32LB52 产品固件接入并做真机联调。
