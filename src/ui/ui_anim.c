@@ -98,27 +98,16 @@ void ui_anim_breathe(lv_obj_t *obj)
         return;
     }
     lv_anim_del(obj, NULL);
-#ifdef UI_ANIM_TRANSFORM
-    set_pivot_center(obj);
+    /* Keep opacity and zoom fixed: repeated full-object redraws flicker on
+     * the current SiFli display path. A small vertical drift is cheaper. */
     lv_anim_init(&a);
     lv_anim_set_var(&a, obj);
-    lv_anim_set_values(&a, ZOOM_BASE, ZOOM_BASE + ZOOM_BREATHE);
+    lv_anim_set_values(&a, 0, -2);
     lv_anim_set_time(&a, 1500);
     lv_anim_set_playback_time(&a, 1500);
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_set_exec_cb(&a, zoom_exec_cb);
+    lv_anim_set_exec_cb(&a, translate_y_exec_cb);
     lv_anim_start(&a);
-#else
-    /* 降级：透明度呼吸。 */
-    lv_anim_init(&a);
-    lv_anim_set_var(&a, obj);
-    lv_anim_set_values(&a, LV_OPA_80, LV_OPA_COVER);
-    lv_anim_set_time(&a, 1500);
-    lv_anim_set_playback_time(&a, 1500);
-    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_set_exec_cb(&a, opa_exec_cb);
-    lv_anim_start(&a);
-#endif
 }
 
 void ui_anim_happy(lv_obj_t *obj)
