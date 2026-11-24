@@ -1,6 +1,9 @@
 #include "ui_anim.h"
 
 #include "ui_internal.h"
+#include "ui_frame_seq.h"
+#include "ui_pose_frame.h"
+#include "ui_skin_image.h"
 
 /* transform 样式（zoom/angle/pivot）需要 LVGL v8.2+；低版本自动降级。 */
 #if LV_VERSION_MAJOR > 8 || (LV_VERSION_MAJOR == 8 && LV_VERSION_MINOR >= 2)
@@ -87,6 +90,69 @@ static void fade_ready_cb(lv_anim_t *a)
     lv_obj_set_style_translate_x((lv_obj_t *)a->var, 0, 0);
 }
 
+/* ---------------- 姿态帧分支：帧组就绪时部位动优先于整图变换 ---------------- */
+
+/* 各动作帧时长（ms）：呼吸 ~8FPS、跳舞 ~10FPS、开心/欢呼帧少稍慢便于感知。 */
+static uint16_t pose_frame_ms(ui_pose_action_t action)
+{
+    switch (action)
+    {
+    case UI_POSE_DANCE:
+        return 100U; /* 6 帧 x 100ms x 4 轮 ~= 2.4s */
+    case UI_POSE_HAPPY:
+        return 150U; /* 2 帧 x 150ms x 2 轮 = 0.6s，与整图版节奏一致 */
+    case UI_POSE_CHEER:
+        return 120U;
+    case UI_POSE_BREATHE:
+    default:
+        return 120U; /* 2 帧 ~= 8FPS，缓慢自然 */
+    }
+}
+
+/* 当前皮肤有该动作帧组则切帧播放并返回 1；否则返回 0 走整图回退。 */
+static int pose_play(lv_obj_t *obj, ui_pose_action_t action, int32_t loops,
+                     void (*done_cb)(lv_obj_t *))
+{
+    const velapet_snapshot_t *snap = velapet_service_snapshot();
+    const lv_img_dsc_t *const *frames;
+    uint8_t count = 0U;
+    int skin_index;
+    ui_frame_seq_cfg_t cfg;
+
+    if (obj == NULL || snap == NULL)
+    {
+        return 0;
+    }
+    skin_index = ui_skin_image_index_of(snap->current_skin);
+    if (skin_index < 0)
+    {
+        return 0;
+    }
+    frames = ui_pose_frames((uint8_t)skin_index, action, &count);
+    if (frames == NULL)
+    {
+        return 0;
+    }
+    cfg.frames = frames;
+    cfg.count = count;
+    cfg.frame_ms = pose_frame_ms(action);
+    cfg.loops = loops;
+    cfg.done_cb = done_cb;
+    ui_frame_seq_play(obj, &cfg);
+    return 1;
+}
+
+/* 帧版动作结束：复位可能的样式残留并重启呼吸（帧模式下呼吸也是帧组）。 */
+static void pose_done_restart_breathe(lv_obj_t *obj)
+{
+    lv_obj_set_style_translate_y(obj, 0, 0);
+#ifdef UI_ANIM_TRANSFORM
+    lv_obj_set_style_transform_zoom(obj, ZOOM_BASE, 0);
+    lv_obj_set_style_transform_angle(obj, 0, 0);
+#endif
+    ui_anim_breathe(obj);
+}
+
 /* ---------------- 对外动作 ---------------- */
 
 void ui_anim_breathe(lv_obj_t *obj)
@@ -98,6 +164,10 @@ void ui_anim_breathe(lv_obj_t *obj)
         return;
     }
     lv_anim_del(obj, NULL);
+    if (pose_play(obj, UI_POSE_BREATHE, -1, NULL))
+    {
+        return;
+    }
     /* Keep opacity and zoom fixed: repeated full-object redraws flicker on
      * the current SiFli display path. A small vertical drift is cheaper. */
     lv_anim_init(&a);
@@ -119,6 +189,12 @@ void ui_anim_happy(lv_obj_t *obj)
         return;
     }
     lv_anim_del(obj, NULL);
+    ui_frame_seq_stop(obj);
+    if (pose_play(obj, UI_POSE_HAPPY, 2, pose_done_restart_breathe))
+    {
+        /* TODO 震动接入：硬件线 vp_input 就绪后在动作起点触发短震。 */
+        return;
+    }
 #ifdef UI_ANIM_TRANSFORM
     set_pivot_center(obj);
     lv_anim_init(&a);
@@ -141,7 +217,6 @@ void ui_anim_happy(lv_obj_t *obj)
     lv_anim_set_ready_cb(&a, restart_breathe_cb);
     lv_anim_start(&a);
 #endif
-    /* TODO 震动接入：硬件线 vp_input 就绪后在动作起点触发短震。 */
 }
 
 void ui_anim_dance(lv_obj_t *obj)
@@ -153,6 +228,11 @@ void ui_anim_dance(lv_obj_t *obj)
         return;
     }
     lv_anim_del(obj, NULL);
+    ui_frame_seq_stop(obj);
+    if (pose_play(obj, UI_POSE_DANCE, 4, pose_done_restart_breathe))
+    {
+        return;
+    }
 #ifdef UI_ANIM_TRANSFORM
     set_pivot_center(obj);
     /* 摇摆：±15°（0.1° 单位），300ms 单程 × 3 轮。 */
@@ -196,6 +276,11 @@ void ui_anim_cheer(lv_obj_t *obj)
         return;
     }
     lv_anim_del(obj, NULL);
+    ui_frame_seq_stop(obj);
+    if (pose_play(obj, UI_POSE_CHEER, 2, pose_done_restart_breathe))
+    {
+        return;
+    }
     lv_anim_init(&a);
     lv_anim_set_var(&a, obj);
     lv_anim_set_values(&a, 0, -24);
@@ -243,6 +328,7 @@ void ui_anim_stop(lv_obj_t *obj)
         return;
     }
     lv_anim_del(obj, NULL);
+    ui_frame_seq_stop(obj);
     lv_obj_set_style_translate_x(obj, 0, 0);
     lv_obj_set_style_translate_y(obj, 0, 0);
     lv_obj_set_style_opa(obj, LV_OPA_COVER, 0);

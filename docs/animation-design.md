@@ -101,6 +101,30 @@ ui_anim.h
 └─ ui_anim_press(obj)                            A12 按压反馈
 ```
 
+### 5.1 姿态帧播放层（2026-11-24 交付，第 4.1 节机制落地）
+
+```
+src/ui/ui_frame_seq.c/h        通用帧轮播器：lv_timer 按 frame_ms 切 lv_img 源；
+                               play/stop/active，自动记录并恢复基础帧，对象销毁自动清理
+src/ui/ui_pose_frame.c/h       帧组查询层：ui_pose_frames(skin_index, action, &count)；
+                               VELAPET_UI_POSE_FRAMES=0 时恒返 NULL（回退整图动画）
+src/ui/assets/ui_pose_img_data.c/h   管线生成（gen-pose-frames.js），帧表引用主图 dsc 防重复嵌入
+scripts/gen-pose-frames.js     assets/poses/<skin>/<action>_<n>.jpg -> C 数组（220x176 断言）
+scripts/process-pose-frames.js 生图源图中心裁 5:4（裁底部水印）-> 220x176 JPG 入库
+```
+
+**双路径分发**（`ui_anim.c` 内实现，调用方无感知）：`ui_anim_breathe/happy/dance/cheer`
+先查当前皮肤是否配置帧组 —— 有则走 `ui_frame_seq`（部位在动，整图不位移，节奏与
+整图版一致：呼吸 ~8FPS 无限 / 开心跳 2 帧×150ms×2 轮 / 跳舞 6 帧×100ms×4 轮 /
+欢呼 3 帧×120ms×2 轮），无则回退原有整图样式变换。**当前实施状态**：
+
+| 项 | 状态 |
+|----|------|
+| 播放器 / 查询层 / 动作分发 | 已入库，stub 语法验证 + 状态机 13 项逻辑断言全过 |
+| 素材管线（生成 + 校验 + C 数组） | 已入库，default 皮肤 4 帧（呼吸 2 + 开心跳 2）跑通 |
+| 姿态帧素材 | **示范帧 2 张**（AI 图生图，验证管线用，角色/画风一致性目测通过）；全套 5 皮肤 × 4 动作帧组**待量产**——链式图生图（上一帧作输入）建议走组员四已验通的 Seedream 接口批量生成后入库 |
+| 真机验证 | 未做：需固件编译（`VELAPET_UI_POSE_FRAMES=1`）+ 实机观察帧率与手感 |
+
 接入点：`ui_home.c` 宠物舞台绑定 tap（A1/A2）+ 进入页启动呼吸（A4）；`ui_task.c` 签到成功回调接 A5；`ui_router.c` 切页统一挂 A9；`ui_skin.c` 换肤接 A8。所有动画回调不删除目标对象，页面销毁先 `ui_anim_stop` ——与既有"回调内不删自己"的安全纪律一致。
 
 ## 6. 真机适配校准清单（第 4 步执行依据，前置条件：固件编译通过）
