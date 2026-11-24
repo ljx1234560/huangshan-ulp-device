@@ -886,3 +886,31 @@ Confirm the user's apparent phone connection to the official BLE Peripheral cont
 - The Web platform is ready for branch review under `host/web/`; no generated `dist`, `node_modules`, Python virtual environment, cache, local database, real `.env`, API key, private key, or access token is part of the change.
 - Real SF32LB52 GATT integration, physical device identity confirmation, BLE radio testing, Flash persistence, and PostgreSQL runtime acceptance remain separate follow-up gates.
 
+## 2026-11-24 - Motion/sync decisions, ownership correction, and sync review
+
+### Objective and scope
+
+- Record and apply four lead-level decisions: AGENTS.md section 4 ownership correction, conditional approval of `vp_sensor_*`, reassignment of FE-1/FE-2 to the hardware line, and conditional project approval for the `sf32lb52-sync` candidate C modules.
+- Documentation and ownership only; no firmware source behavior changed and no board work was done.
+
+### Decisions and changes
+
+- Corrected `AGENTS.md` section 4 to the 2026-11-24 final assignment: watch side = member 2, Web management = member 3, including the Web collaboration line and section 5 directory ownership.
+- Added the motion sampling adapter to the hardware-line boundary and `src/app/velapet_motion.*` to the watch-side boundary.
+- Updated `docs/motion-model.md` and `docs/motion-handoff.md`: sampling adapter and calibration now belong to the hardware line, watch side keeps FE-3..FE-7, branch naming uses member-1/member-2, and the Web counterpart is member 3.
+- Added `docs/motion-decisions-2026-11-24.md` with the four decisions, pending items, and sync review gates.
+- `vp_sensor_*` is recorded as conditionally approved pending three review modifications whose text is not yet archived; AGENTS.md's four-interface contract was deliberately left unchanged until they arrive.
+- Reviewed `host/web/firmware/sf32lb52-sync`: compiled and ran its host tests with WSL GCC, result `VELAPET_SYNC_PROTOCOL_TEST result=PASS cases=3`. Conditional approval is subject to gates: explicit 28-byte record codec with cross-language golden vectors, struct ABI/RAM correction, reboot-safe record IDs, BLE-worker ownership, MTU/fragment/NACK handling, authorization closure, and expanded tests.
+
+### Validation
+
+- `git diff --check` passed for all documentation changes.
+- Candidate sync tests: `VELAPET_SYNC_PROTOCOL_TEST result=PASS cases=3`.
+- Not run: firmware build, board/serial/Flash access, and any real sensor or BLE validation.
+
+### Final state and risks
+
+- Ownership and handoff documents now match the 2026-11-24 assignment.
+- `vp_sensor_*` remains conditionally approved until the three review modifications are supplied; the formal fifth interface is not yet recorded in AGENTS.md.
+- The sync candidate remains under `host/web/firmware/` and must not move into `src/` until every listed gate is closed.
+
