@@ -789,6 +789,34 @@ Confirm the user's apparent phone connection to the official BLE Peripheral cont
 - After flashing, `.\scripts\serial-command.ps1 -Port COM8 -Command 'ui_status' -ReadSeconds 15` returned `[ui] status=WAITING taps=0 last=NONE`. This proves the new shell command runs; no UI touch event has yet been observed.
 - Display appearance, five-page navigation, physical touch, keyboard entry, and animations still require human observation. No sensor or motion-model conclusion was drawn from this firmware bring-up.
 
+## 2026-11-17 - Image-enabled UI board test and recovery
+
+### Scope and configuration
+
+- Fast-forwarded the clean `main` branch from `0e5e306` to `da82ff8` with `git pull --ff-only origin main`.
+- Trial-built with `VELAPET_UI_SKIN_IMAGES=1` and an explicit `LV_USE_TJPGD=1` define. The pinned LVGL v8 has no separate `LV_USE_TJPGD` option; its enabled `LV_USE_SJPG=1` decoder contains TJpgDec and accepts RAW JPEG. `LV_IMG_CACHE_DEF_SIZE=16` already satisfies the requested minimum.
+- `.\scripts\build.ps1` passed. The image-enabled `main.bin` was 2,190,936 bytes, SHA-256 `8254D05CDDD0BF246E6DBE62717E245528C48A50124D94841BA8806A06106F54`.
+
+### On-device result and recovery
+
+- Flashed the image-enabled build to the CH340 board on COM8 with `.\scripts\flash.ps1 -Port COM8 -Confirm`; write verification passed. Two `ui_status` queries returned no output. A bounded RTS reset captured `[ui] init=PASS` followed by `HAL assertion failed` in SDK `bf0_hal_epic.c:3302` during the first display frame, with fatal error on the main thread. Therefore the requested five-page/touch/keyboard/animation/thumbnail checklist could not be completed on this build.
+- Removed the trial build defines without editing the external SDK, rebuilt successfully, and flashed the prior geometric-avatar configuration back to COM8 with write verification. A bounded RTS reset then showed normal UI initialization, LCD `ON`, BLE stack/service/advertising `PASS`, and no assertion during the observation window.
+- The board is currently running the recovered image without embedded skin pictures. Physical screen appearance, finger taps, five-page navigation, keyboard entry, single/double tap animations, breathing, and skin thumbnails remain unverified. The image path needs a product-side fix for SiFli EPIC handling of RAW JPEG before another image-enabled flash.
+
+## 2026-11-17 - Remote commit check and repeat flash gate
+
+- Fetched `origin/main` and all remote refs, then ran `git pull --ff-only origin main`. Both local and remote `main` remained at `da82ff8`; the pull reported `Already up to date.` No newer firmware fix was present on the remote.
+- Rebuilt the current `main` with `.\scripts\build.ps1`; exit code 0. The resulting `main.bin` remained 2,075,824 bytes with SHA-256 `61BBF031EAC249DC456B125FE2E3836027B46ACCF920B1072E15EE0D4FB2C14F`, identical to the recovered board image.
+- Ran `.\scripts\flash.ps1 -Port COM8 -Confirm` and accepted the built-in prompt. The tool connected to the CH340 board, compared bootloader, main, and flash table, and skipped all three as already identical; exit code 0. No Flash bytes were rewritten.
+- A subsequent `ui_status` query returned `[ui] status=WAITING taps=0 last=NONE`. The board remains on the bootable geometric-avatar firmware. Skin-image validation is still blocked by the recorded EPIC assertion; no physical interaction result was claimed.
+
+## 2026-11-17 - Chat waiting and pet flicker triage
+
+- The watch has no registered on-device AI worker or verified IP transport. `ui_ai_submit()` nevertheless accepted a quick message, and the chat page waited for a result indefinitely. Updated `ui_chat.c` to show the existing local offline reply immediately whenever `ui_ai_mode()==0`; no cloud reply is claimed.
+- The home pet's continuous breathing animation used repeated zoom or opacity updates on the geometric avatar. Replaced that idle effect with a small two-pixel vertical motion to avoid the visible repeated flash while retaining a minimal idle movement. Single-tap and double-tap callbacks remain connected to the happy and dance animations; these are whole-object style transforms, not the planned pose-frame animation.
+- `.\scripts\build.ps1` passed and `.\scripts\flash.ps1 -Port COM8 -Confirm` wrote and verified the new main and flash-table images. A bounded RTS reset showed `[ui] init=PASS`, LCD `ON`, BLE advertising `PASS`, and no assertion during the capture. Physical chat tapping, appearance, and animation smoothness require on-screen confirmation.
+- The PC FastAPI backend and one historical host-to-provider request do not establish a board-to-cloud path. The ESP-01S is still uninstalled, so watch AI integration remains separate work.
+
 ## 2026-11-17 - Reassign watch work and add Web management ownership
 
 ### Decision and change
@@ -913,4 +941,21 @@ Confirm the user's apparent phone connection to the official BLE Peripheral cont
 - Ownership and handoff documents now match the 2026-11-24 assignment.
 - `vp_sensor_*` remains conditionally approved until the three review modifications are supplied; the formal fifth interface is not yet recorded in AGENTS.md.
 - The sync candidate remains under `host/web/firmware/` and must not move into `src/` until every listed gate is closed.
+## 2026-11-17 - Inventory motion sensor inputs and data gaps
+
+### Objective and scope
+
+- Check the board's populated sensors, every field currently exposed by the pinned SDK sensor wrappers, and which data the active VelaPet firmware can actually return before designing an activity model.
+
+### Findings and changes
+
+- Added `docs/motion-sensor-inventory.md` with the three board sensor ICs, five SDK data streams, evidence levels, unused silicon functions, data-quality defects, and a first-pass motion-model collection contract.
+- Confirmed COM8 as the CH340 board port. Initial shell requests were silent; one bounded RTS reset returned the VelaPet boot log, successful UI initialization, and BLE startup. A subsequent `list_device` listed no sensor devices or `i2c3`.
+- The current generated `.config` disables `RT_USING_SENSOR` and `BSP_USING_I2C3`; no live sensor measurement can be obtained from this product image. The older factory-image evidence includes stationary acceleration, gyro, magnetometer, and zero-step samples, but no verified changing light sample or walking step increments.
+- Pinned SDK inspection found an out-of-bounds MMC56x3 Z-axis read, LTR303 raw CH1 data mislabeled as lux, incomplete read-error checking in the LSM6 wrapper, and timestamps too coarse for cadence when RTC time is used. These require product-side adaptation and validation before model training.
+
+### Validation and final state
+
+- Cross-checked the inventory against the board vendor's hardware and sensor documentation, pinned SDK source, current build configuration, prior hardware log, and live `list_device` output. No product source or Flash was changed; the board was left running the same VelaPet image after restart.
+- No movement trial or new live sensor sample was collected. Next gate: enable a bounded sensor diagnostic build, review the image and recovery path, then collect labeled multi-condition logs on the device.
 

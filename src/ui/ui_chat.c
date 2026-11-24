@@ -227,6 +227,13 @@ static void poll_cb(lv_timer_t *timer)
 static void do_send(ui_ai_kind_t kind, const char *text,
                     const char *display_text)
 {
+    if (ui_ai_mode() == 0)
+    {
+        add_system_line("AI 服务未接入，当前为本地提示");
+        add_bubble(0, offline_lines[(int)kind]);
+        return;
+    }
+
     ui_ai_submit_t result = ui_ai_submit(kind, text);
 
     switch (result)
