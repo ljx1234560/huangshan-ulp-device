@@ -3,7 +3,8 @@
 - 日期：2026-11-17（2026-11-24 更新归属）
 - 体系文档：`docs/motion-model.md`
 - 已交付核心：`src/app/velapet_motion.h/.c`、`tests/unit/velapet_motion_test.c`
-- 当前验证：主机单测 3 组通过（core 5 / service 6 / motion 7），未做真机验证
+- 当前验证：主机单测 3 组通过（core 5 / service 6 / motion 7），**输入为合成数据**；未做真机验证
+- 传感器证据与 SDK 封装风险：`docs/motion-sensor-inventory.md`
 
 ## 1. 交接摘要
 
@@ -22,6 +23,7 @@
 3. `src/app/velapet_service.h`：现有业务服务与快照。
 4. `AGENTS.md` 第 4、6、9 节：职责边界、流程、Git 约定。
 5. `docs/testing.md`：验证等级与诊断命令要求。
+6. `docs/motion-sensor-inventory.md`：板载器件、五路数据证据、SDK 封装缺陷。
 
 ## 3. 接口冻结
 
@@ -45,40 +47,45 @@
 ### FE-1 采样适配器与诊断命令（P0，硬件线）
 
 - 负责：硬件线（组员一 + 项目负责人）；手表端评审语义与验收。
-- 目标：把板载 5 路传感器接入 `velapet_motion_*`。
+- 目标：把板载 LSM6DS3TR-C 加速度与芯片计步接入 `velapet_motion_*`（v1 只用这两路）。
 - 交付：
-  - `vp_sensor_*` 实现（建议 `src/services/motion_sensor.*`）。
-  - 25 Hz 加速度、2 s 计步轮询、1 Hz 光照。
-  - 有界诊断命令：`diag motion watch <s>`、`diag step watch <s>`、`diag motion dump <s>`。
+  - 在 `project/` 生成配置中启用 `RT_USING_SENSOR` 与 `BSP_USING_I2C3`，注册 LSM6DS3TR-C；记录改动前后 `.config` 差异。
+  - `vp_sensor_*` 实现（建议 `src/services/motion_sensor.*`）：25 Hz 加速度、2 s 计步轮询；单调毫秒时间戳；读错计数；有效/无效样本标记。
+  - 有界诊断命令：`diag motion watch <s>`、`diag step watch <s>`、`diag motion dump <s>`；输出设备 ID、单位、时间戳、读取错误、实际采样间隔。
 - 验收：
-  - 串口命令在超时内输出 `PASS/FAIL/MANUAL_CONFIRM` 并恢复状态。
-  - 静止时活动状态为 `STILL`；抖手为 `LIGHT`；连续走为 `WALKING`。
+  - `list_device` 能看到传感器；诊断命令超时内输出 `PASS/FAIL/MANUAL_CONFIRM` 并恢复状态。
+  - 静止时活动状态为 `STILL`；连续走为 `WALKING`。
+  - I²C 失败样本被丢弃并计数，不进入模型。
   - 设备打开失败有明确错误码，不影响 UI 启动。
-- 依赖：无；需硬件线提供引脚/SDK 设备名确认。
+- 依赖：无；磁力计/光照 v1 不接入，MMC Z 轴越界与 LTR 单位问题留到 P2。
 
 ### FE-2 计步语义验证与阈值标定（P0，硬件线）
 
 - 负责：硬件线（组员一 + 项目负责人）；手表端给出验收口径。
-- 目标：消除最大风险——计步器语义未知。
+- 目标：消除最大风险——计步器语义未知，并决定是否开发加速度自主计步。
 - 交付：
-  - 已知 100/500 步走行记录：增量、回绕、重启前后的计数行为。
-  - 静止 10 分钟、抖手 5 分钟、摘下 10 分钟、明暗切换的原始轨迹。
+  - 已知 100/500 步走行记录：原始累计计数、增量、回绕、清零、重启前后行为、启动标识。
+  - 静止 10 分钟、原地摆臂 5 分钟、上下楼、摘下 10 分钟、长时间缺样本的原始轨迹。
+  - 每条轨迹带单调毫秒时间戳、读错标志、固件版本与配置。
   - 轨迹转成回放用例（`tests/unit` 或 `tests/hardware-in-loop`）。
   - 更新 `velapet_motion_default_config()` 的阈值。
+  - 给出芯片计步误差结论：≤5% 沿用芯片计步；>5% 再立项加速度自主计步。
 - 验收：
   - 500 步误差 ≤5%；回绕与清零均不误计。
-  - 久坐检测延迟 ≤2 分钟；非佩戴不误发提醒。
+  - 久坐检测延迟 ≤2 分钟；缺样本/故障不误发提醒。
+  - 真实轨迹回放通过，事件不丢次。
 - 依赖：FE-1。
 
 ### FE-3 业务服务接入（P1）
 
 - 目标：运动事件进入 `velapet_service`。
 - 交付：
-  - 运动任务线程：取步数增量 → `velapet_service_record_steps()`；`WALK_MINUTE` → `record_exercise_minutes(1)`；`ACTIVE_MINUTE` → 新增 `record_active_minutes(1)`。
-  - 业务层实现提醒策略：安静时段、冷却、每日上限、非佩戴抑制。
+  - 运动任务线程：取步数增量 → `velapet_service_record_steps()`；行走/活动分钟用 `walk_minutes_today`、`active_minutes_today` 的单调差值 → 对应记录接口。
+  - 不得只靠 `WALK_MINUTE`/`ACTIVE_MINUTE` 事件位入账；事件位在慢消费时会合并。
+  - 业务层实现提醒策略：安静时段、冷却、每日上限、非佩戴抑制；采样无效超 60 秒时暂停提醒并标记传感器不可用。
   - 新增提醒事件接口（读取即清除），UI 只消费事件。
 - 验收：
-  - 步数、活动分钟、行走分钟与模型计数一致，不重复。
+  - 步数、活动分钟、行走分钟与模型计数一致，不重复；阻塞 3 分钟后恢复仍能补记分钟。
   - 跨天调用 `set_day()` 与 `velapet_motion_reset_day()` 后计数归零、计步基线保留。
 - 依赖：FE-1、FE-2。
 
@@ -105,6 +112,7 @@
 - 验收：
   - 提醒不阻塞 LVGL 线程；页面销毁不回填悬空控件。
   - 安静时段、非佩戴、冷却期内不触发。
+  - 传感器无有效样本超过 60 秒时不提醒，并显示不可用状态；恢复后不补发历史提醒。
 - 依赖：FE-3、FE-4。
 
 ### FE-6 持久化（P2）
@@ -194,8 +202,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\test-unit.ps1
 
 | 风险 | 影响 | 协调 |
 | --- | --- | --- |
+| 产品固件未启用传感器框架/I²C3 | 当前无实时数据，算法核心不等于真机功能 | FE-1 先过采样门禁，未过不宣称运动功能 |
 | 计步器语义未验证 | 步数与任务不可信 | FE-2（硬件线主责）优先，手表端验收 |
 | 阈值未经多人标定 | 误判久坐/活动 | FE-2 采集至少 3 人轨迹 |
+| SDK 封装缺陷（MMC 越界、LTR 单位、LSM6 错误检查、秒级时间戳） | 数据错误或越界访问 | 硬件线适配层修正；v1 不启用 MMC/LTR |
 | `VELAPET_TASK_COUNT` 变更 | 持久化 schema/UI 破坏 | FE-4 一次性迁移并加版本 |
 | 文件系统 BLOCKED | 重启丢当日数据 | FE-6 前明确"不承诺持久化" |
 | 网络未打通 | 同步功能不可演示 | BE-1 先做 schema 与离线验收 |
