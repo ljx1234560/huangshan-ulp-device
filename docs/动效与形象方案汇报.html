@@ -9,6 +9,7 @@
     --bg:#FAF7F2; --card:#FFFFFF; --ink:#2D2A26; --muted:#8A8398;
     --accent:#E8734A; --accent-soft:#FDEEE7; --line:#EAE3D8;
     --good:#3E9B6C; --good-soft:#E9F6EF; --info:#4A7DBF; --info-soft:#EAF1FA;
+    --warn:#B3541E; --warn-soft:#FBEDDF;
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{
@@ -81,24 +82,45 @@
   .demo{display:flex;gap:26px;align-items:center;flex-wrap:wrap}
   .stage{
     flex:0 0 290px;height:232px;border-radius:16px;position:relative;
-    background:linear-gradient(160deg,#FFE9C9 0%,#FFD3A8 60%,#FBBF77 100%);
-    overflow:hidden;cursor:pointer;user-select:none;
+    /* 主题背景渐变：由主题 class 驱动 */
+    --stg1:#FFE9C9; --stg2:#FFD3A8; --stg3:#FBBF77;
+    --hint-fg:rgba(80,50,20,.8); --hint-bg:rgba(255,255,255,.6); --halo:#E9DFF6;
+    background:linear-gradient(160deg,var(--stg1) 0%,var(--stg2) 60%,var(--stg3) 100%);
+    overflow:hidden;cursor:pointer;user-select:none;-webkit-user-select:none;
+    touch-action:manipulation;
     display:flex;align-items:center;justify-content:center;
     box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);
   }
+  .stage.theme-sport{--stg1:#D6E9FA;--stg2:#9CC8EE;--stg3:#5E97D6;--halo:#FFFFFF}
+  .stage.theme-flame{--stg1:#FDE3C0;--stg2:#F7A56B;--stg3:#E86A4A;--halo:#FFF2DC}
+  .stage.theme-star{
+    --stg1:#3E3568;--stg2:#5C4E93;--stg3:#8B7BC4;--halo:#B9ABE8;
+    --hint-fg:rgba(255,255,255,.92);--hint-bg:rgba(40,30,70,.55);
+  }
+  .stage.theme-bubble{--stg1:#FDEFF5;--stg2:#E8D9FA;--stg3:#C9E8FA;--halo:#FFFFFF}
   .stage .hint{
-    position:absolute;left:12px;bottom:10px;font-size:12.5px;color:rgba(80,50,20,.8);
-    background:rgba(255,255,255,.6);padding:2px 11px;border-radius:999px;
+    position:absolute;left:12px;bottom:10px;font-size:12.5px;
+    color:var(--hint-fg);background:var(--hint-bg);padding:2px 11px;border-radius:999px;
+    z-index:3;
   }
   .stage .float{
     position:absolute;top:10px;left:12px;font-size:13px;color:#fff;
     background:rgba(232,115,74,.92);padding:2px 12px;border-radius:999px;
-    opacity:0;transition:opacity .25s;
+    opacity:0;transition:opacity .25s;z-index:3;
   }
   .stage .float.show{opacity:1}
-  .pet{width:232px;height:196px;display:flex;align-items:flex-end}
+  .pet{width:232px;height:196px;display:flex;align-items:flex-end;transition:opacity .12s ease}
+  .pet.switching{opacity:0}
   .pet svg{width:100%;height:100%;display:block}
-  #petSvg g,#petSvg ellipse,#petSvg circle,#petSvg polygon{transform-box:fill-box}
+  #petSvg g,#petSvg ellipse,#petSvg circle,#petSvg polygon,#petSvg path{transform-box:fill-box}
+  #halo{fill:var(--halo);transition:fill .3s}
+  /* 配饰层：默认隐藏，主题 class 控制显隐 */
+  .deco{display:none}
+  .theme-sport .deco-sport{display:block}
+  .theme-flame .deco-flame{display:block}
+  .theme-star  .deco-star{display:block}
+  .theme-bubble .deco-bubble{display:block}
+
   #bodyGrp{transform-origin:50% 100%;animation:bodyBreathe 3s ease-in-out infinite}
   #tail{transform-origin:0% 100%;animation:tailSway 2.4s ease-in-out infinite}
   #earL,#earR{transform-origin:50% 100%;animation:earSway 3.8s ease-in-out infinite}
@@ -110,31 +132,53 @@
   .blush{opacity:.75;transition:opacity .3s}
   .pet.excited .blush{opacity:1}
 
-  @keyframes bodyBreathe{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.045)}}
+  @keyframes bodyBreathe{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.04)}}
   @keyframes tailSway{0%,100%{transform:rotate(-10deg)}50%{transform:rotate(12deg)}}
   @keyframes earSway{0%,100%{transform:rotate(0)}50%{transform:rotate(-4deg)}}
   @keyframes headSway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
   @keyframes armSway{0%,100%{transform:rotate(0)}50%{transform:rotate(7deg)}}
   @keyframes blink{0%,90%,100%{transform:scaleY(1)}93%,95%{transform:scaleY(.12)}}
-  @keyframes happyJump{0%{transform:translateY(0)}22%{transform:translateY(-16px)}
-    40%{transform:translateY(0)}62%{transform:translateY(-12px)}82%,100%{transform:translateY(0)}}
+
+  /* 单击：局部开心反应（耳弹 + 尾加速 + 腮红亮 + ⚡粒子），无整身位移 */
   @keyframes earHop{0%,100%{transform:rotate(0)}20%{transform:rotate(-14deg)}
     40%{transform:rotate(10deg)}60%{transform:rotate(-8deg)}80%{transform:rotate(4deg)}}
-  @keyframes danceSway{0%{transform:rotate(0) translateY(0)}
-    15%{transform:rotate(-12deg) translateY(-8px)}30%{transform:rotate(-12deg) translateY(0)}
-    45%{transform:rotate(12deg) translateY(-8px)}60%{transform:rotate(12deg) translateY(0)}
-    75%{transform:rotate(-12deg) translateY(-8px)}90%,100%{transform:rotate(0) translateY(0)}}
+  @keyframes tailFast{0%,100%{transform:rotate(-18deg)}50%{transform:rotate(20deg)}}
+  .pet.happy #earL,.pet.happy #earR{animation:earHop .6s ease-in-out 1}
+  .pet.happy #tail{animation:tailFast .35s ease-in-out 3}
+
+  /* 双击：欢快模式（挥手 + 头摆加大 + 耳弹 + 尾大幅快摆），无整身位移 */
   @keyframes armWave{0%,100%{transform:rotate(0)}25%{transform:rotate(-30deg)}
     50%{transform:rotate(22deg)}75%{transform:rotate(-30deg)}}
-  @keyframes tailFast{0%,100%{transform:rotate(-18deg)}50%{transform:rotate(20deg)}}
+  @keyframes headGroove{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
+  .pet.cheer #armL{animation:armWave .5s ease-in-out infinite}
+  .pet.cheer #armR{animation:armWave .5s ease-in-out .25s infinite}
+  .pet.cheer #head{animation:headGroove .5s ease-in-out infinite}
+  .pet.cheer #earL,.pet.cheer #earR{animation:earHop .8s ease-in-out infinite}
+  .pet.cheer #tail{animation:tailFast .3s ease-in-out infinite}
 
-  .pet.happy{animation:happyJump .6s ease-in-out 1}
-  .pet.happy #tail,.pet.dance #tail{animation:tailFast .35s ease-in-out infinite}
-  .pet.happy #earL,.pet.happy #earR{animation:earHop .6s ease-in-out 1}
-  .pet.dance{animation:danceSway 2s ease-in-out 1}
-  .pet.dance #armL{animation:armWave .5s ease-in-out infinite}
-  .pet.dance #armR{animation:armWave .5s ease-in-out .25s infinite}
-  .pet.dance #head{animation-duration:.5s}
+  /* 点击冒出的电花粒子 */
+  .zap{
+    position:absolute;font-size:20px;z-index:2;pointer-events:none;
+    animation:zapUp .8s ease-out forwards;
+  }
+  @keyframes zapUp{
+    0%{transform:translateY(0) scale(.6);opacity:0}
+    18%{opacity:1;transform:translateY(-10px) scale(1)}
+    100%{transform:translateY(-52px) scale(1.1);opacity:0}
+  }
+
+  /* 主题切换按钮组 */
+  .themes{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .th{
+    display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);
+    background:#fff;border-radius:999px;padding:6px 13px;font-size:13px;
+    color:#5A554E;cursor:pointer;font-family:inherit;min-height:34px;
+    touch-action:manipulation;transition:border-color .2s,box-shadow .2s;
+  }
+  .th i{width:13px;height:13px;border-radius:50%;background:var(--c,#ccc);
+    border:1px solid rgba(0,0,0,.12);flex:0 0 auto}
+  .th.active{border-color:var(--accent);color:var(--accent);
+    box-shadow:0 0 0 2px var(--accent-soft);font-weight:700}
 
   .demo-side{flex:1 1 300px;min-width:260px}
   .demo-side .kv{list-style:none;font-size:14px}
@@ -146,7 +190,36 @@
   .demo-side .kv b{font-weight:700}
   .demo-side .tip{font-size:12.5px;color:var(--muted);margin-top:8px}
 
-  /* ---------- 4. 形象 ---------- */
+  /* ---------- 4. 形象体系 ---------- */
+  .audit{width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:6px}
+  .audit th,.audit td{
+    border:1px solid var(--line);padding:7px 11px;text-align:left;vertical-align:top;
+  }
+  .audit th{background:var(--accent-soft);font-weight:700;white-space:nowrap}
+  .audit td bad{color:var(--warn);font-weight:700}
+  .audit .where{white-space:nowrap;color:var(--muted);font-size:12.5px}
+  .flaws{margin:10px 0 0;font-size:13.5px;color:#5A554E;list-style:none}
+  .flaws li{padding:3px 0 3px 24px;position:relative}
+  .flaws li::before{content:"✕";position:absolute;left:4px;color:var(--warn);font-weight:700}
+
+  .charcard{
+    display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:14px;
+    background:linear-gradient(135deg,#FFF9EC,#FDEEE7);border:1px solid var(--line);
+    border-radius:14px;padding:16px 20px;
+  }
+  .charcard img{
+    width:112px;height:90px;object-fit:cover;border-radius:12px;border:1px solid var(--line);
+  }
+  .charcard .info{flex:1 1 260px;min-width:240px;font-size:13.5px;color:#5A554E}
+  .charcard .info b{color:var(--ink);font-size:16px}
+  .charcard .info .id{font-size:12px;color:var(--muted);font-family:Consolas,monospace}
+  .charcard .info p{margin-top:5px}
+  .charcard .info .dna{margin-top:7px}
+  .charcard .info .dna span{
+    display:inline-block;font-size:12px;background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:1px 10px;margin:2px 4px 2px 0;color:var(--ink);
+  }
+
   .skins{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:12px}
   .skin{text-align:center}
   .skin img{
@@ -154,6 +227,8 @@
     -webkit-user-drag:none;
   }
   .skin b{display:block;margin-top:6px;font-size:13.5px}
+  .skin .sid{display:block;font-size:11px;color:var(--muted);font-family:Consolas,monospace}
+
   .keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:12px;margin-top:14px}
   .key{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:15px 18px}
   .key .num{
@@ -182,11 +257,12 @@
 
   @media print{
     body{padding:8mm;background:#fff}
-    .card,.act,.key,.mech .m,.prog li,.stage{break-inside:avoid}
+    .card,.act,.key,.mech .m,.prog li,.stage,.charcard{break-inside:avoid}
     section{margin-top:18px}
   }
   @media (max-width:640px){
     .stage{flex:1 1 100%}
+    .themes .th{padding:6px 11px}
   }
 </style>
 </head>
@@ -198,7 +274,7 @@
   <div class="sub">让宠物在手表上“活”起来 · AI 定制形象一次生成即可用</div>
   <div class="badges">
     <span class="badge">6 个核心动作已落地</span>
-    <span class="badge">5 套原创预设形象</span>
+    <span class="badge">1 只角色 × 5 套主题皮肤</span>
     <span class="badge blue">本页可现场交互演示</span>
   </div>
 </header>
@@ -215,7 +291,7 @@
     <div class="m alt">
       <span class="tag">② 整身变换</span>
       <b>管“动作节奏”</b>
-      <p>在当前帧上叠加缩放、旋转、位移、透明度，给出弹跳、摇摆、淡入淡出的整体节奏，像拍照时的推拉摇移。</p>
+      <p>在当前帧上叠加极轻的缩放、位移、透明度微调，只做节奏点缀，<b>不承担动作主体</b> —— 动作靠部位姿态表达，而不是整张图位移。</p>
     </div>
     <div class="m warn">
       <span class="tag">为什么这样做</span>
@@ -227,26 +303,26 @@
 
 <!-- ================= 2. 交互动作 ================= -->
 <section>
-  <h2>六个交互动作 <small>点一下跳 · 点两下舞</small></h2>
+  <h2>六个交互动作 <small>点一下开心 · 点两下欢快</small></h2>
   <div class="acts">
     <div class="act"><div class="ico">👆</div><div>
-      <span class="trig">单击宠物</span><b>开心跳两下</b>
-      <p>原地弹跳两次（约 0.6 秒）+ 一次轻震动</p>
+      <span class="trig">单击宠物</span><b>开心反应</b>
+      <p>耳朵弹动 + 尾巴加速 + 腮红发亮 + 冒出小电花（真机由“开心跳”帧组驱动部位姿态）</p>
       <span class="st">已完成</span>
     </div></div>
     <div class="act"><div class="ico">👆👆</div><div>
-      <span class="trig">双击宠物</span><b>跳舞 2 秒</b>
-      <p>左右摇摆 ±15° 转身 + 上下弹跳三轮，结束自动回位</p>
+      <span class="trig">双击宠物</span><b>欢快模式 2 秒</b>
+      <p>双臂交替挥手 + 头部左右摇摆 + 尾巴大幅快摆，结束自动回位（真机由“跳舞”帧组驱动）</p>
       <span class="st">已完成</span>
     </div></div>
     <div class="act"><div class="ico">💤</div><div>
       <span class="trig">待机常驻</span><b>呼吸起伏</b>
-      <p>整幅场景图每 3 秒缓慢起伏，永远有生命感</p>
+      <p>身体每 3 秒缓慢起伏，配合摆尾、眨眼、头部轻摆，永远有生命感</p>
       <span class="st">已完成</span>
     </div></div>
     <div class="act"><div class="ico">🎉</div><div>
-      <span class="trig">签到 / 步数达标</span><b>欢呼弹跳</b>
-      <p>两连跳（达标为加强三连跳 + 快速摇摆），仪式感拉满</p>
+      <span class="trig">签到 / 步数达标</span><b>欢呼庆祝</b>
+      <p>庆祝帧组轮播 + 局部部件连动（达标加强版），仪式感拉满</p>
       <span class="st">已完成</span>
     </div></div>
     <div class="act"><div class="ico">🎨</div><div>
@@ -262,22 +338,36 @@
   </div>
   <div class="note">
     <b>单击 / 双击怎么分：</b>LVGL 不区分两者，自研 <b>250ms 判别窗口</b>（同手机系统思路）—— 点下后等 250ms，没有第二下就判单击，有就判双击；封装成全页面复用模块，与手表端同参数。
+    <br><b>不再整图跳动：</b>点击只触发<b>约定的部位动效或切换效果</b>；整身缩放/位移仅作为帧序列之上的节奏微调（如呼吸 ±4%），不作为动作主体。
   </div>
 </section>
 
 <!-- ================= 3. 现场演示 ================= -->
 <section>
-  <h2>现场演示 <small>在下方宠物上点一下 / 快速点两下</small></h2>
+  <h2>现场演示 <small>点一下 / 快点两下 / 下方换主题</small></h2>
   <div class="card">
     <div class="demo">
-      <div class="stage" id="stage">
+      <div class="stage theme-default" id="stage">
         <div class="pet" id="pet">
           <svg id="petSvg" viewBox="0 0 200 160" aria-label="宠物动效演示">
             <defs>
               <clipPath id="earLCut"><circle cx="64" cy="28" r="20"/></clipPath>
               <clipPath id="earRCut"><circle cx="136" cy="28" r="20"/></clipPath>
             </defs>
-            <ellipse cx="100" cy="86" rx="84" ry="68" fill="#E9DFF6" opacity=".5"/>
+            <ellipse id="halo" cx="100" cy="86" rx="84" ry="68" opacity=".5"/>
+            <!-- 背景配饰层：火花 / 泡泡（按主题显隐） -->
+            <g id="decoFlame" class="deco deco-flame">
+              <path d="M32 108 q-8-9 0-18 q8 9 0 18z" fill="#FFB35C"/>
+              <path d="M40 92 q-5-6 0-12 q5 6 0 12z" fill="#E8734A"/>
+              <path d="M170 104 q-8-9 0-18 q8 9 0 18z" fill="#FFB35C"/>
+              <path d="M161 88 q-5-6 0-12 q5 6 0 12z" fill="#E8734A"/>
+            </g>
+            <g id="decoBubble" class="deco deco-bubble">
+              <circle cx="32" cy="44" r="10" fill="#FFFFFF" opacity=".5" stroke="#9AD7F0" stroke-width="1.5"/>
+              <circle cx="168" cy="36" r="8" fill="#FFFFFF" opacity=".5" stroke="#C9A7EC" stroke-width="1.5"/>
+              <circle cx="176" cy="112" r="7" fill="#FFFFFF" opacity=".5" stroke="#F0A7C0" stroke-width="1.5"/>
+              <circle cx="28" cy="120" r="5.5" fill="#FFFFFF" opacity=".55" stroke="#9AD7F0" stroke-width="1.5"/>
+            </g>
             <!-- 尾巴：闪电形，旋转轴在根部 -->
             <g id="tail">
               <polygon points="146,118 172,106 163,98 184,84 158,82 168,68 144,80"
@@ -306,6 +396,16 @@
                 <ellipse cx="140" cy="12" rx="16" ry="9" fill="#4A3B2A" clip-path="url(#earRCut)"/>
               </g>
               <circle cx="100" cy="66" r="37" fill="#FFD44D"/>
+              <!-- 主题头饰：晨跑头带 / 星夜巫师帽（按主题显隐） -->
+              <g id="decoSport" class="deco deco-sport">
+                <path d="M67 44 Q100 26 133 44" stroke="#4A7DBF" stroke-width="9" fill="none" stroke-linecap="round"/>
+                <path d="M133 44 L142 52 L136 54 Z" fill="#4A7DBF"/>
+              </g>
+              <g id="decoStar" class="deco deco-star">
+                <polygon points="100,4 86,30 114,30" fill="#7C5FC0"/>
+                <ellipse cx="100" cy="30" rx="21" ry="6" fill="#5F45A0"/>
+                <circle cx="100" cy="16" r="3.2" fill="#FFD44D"/>
+              </g>
               <g id="eyeL"><circle cx="86" cy="60" r="6.5" fill="#2D2A26"/><circle cx="88.5" cy="57.5" r="2.2" fill="#FFFFFF"/><circle cx="83.5" cy="62" r="1.1" fill="#FFFFFF" opacity=".8"/></g>
               <g id="eyeR"><circle cx="114" cy="60" r="6.5" fill="#2D2A26"/><circle cx="116.5" cy="57.5" r="2.2" fill="#FFFFFF"/><circle cx="111.5" cy="62" r="1.1" fill="#FFFFFF" opacity=".8"/></g>
               <ellipse class="blush" cx="74" cy="74" rx="8" ry="5" fill="#F97B6B"/>
@@ -315,47 +415,91 @@
             </g>
           </svg>
         </div>
-        <div class="float" id="floatTip">开心跳！</div>
-        <div class="hint">点我一下 · 快速点我两下</div>
+        <div class="float" id="floatTip">开心！</div>
+        <div class="hint">点我一下 · 快点两下 · 下方换主题</div>
       </div>
       <div class="demo-side">
         <ul class="kv">
           <li><b>待机：</b>呼吸起伏 + 摆尾 + 眨眼 + 头部轻摆，各自不同节奏</li>
-          <li><b>单击：</b>整身弹跳两下 + 耳朵弹动 + 尾巴加速</li>
-          <li><b>双击：</b>左右摇摆跳舞 + 双臂交替挥手 + 尾巴大幅快摆</li>
+          <li><b>单击：</b>局部开心反应 —— 耳朵弹动 + 尾巴加速 + 腮红发亮 + 冒小电花，<b>整图不动</b></li>
+          <li><b>双击：</b>欢快模式 —— 双臂交替挥手 + 头部摇摆 + 尾巴大幅快摆，<b>整图不动</b></li>
+          <li><b>换主题：</b>点击下方按钮，250ms 淡入淡出切换配饰与场景（同真机换肤参数）</li>
         </ul>
-        <p class="tip">演示为矢量部件版，逻辑与参数同手表端；真机形象为右侧 5 套预设（帧序列实现，见上）。</p>
+        <div class="themes" id="themes">
+          <button class="th active" data-theme="theme-default"><i style="--c:#F6DFAE"></i>日常</button>
+          <button class="th" data-theme="theme-sport"><i style="--c:#6FA8DC"></i>晨跑</button>
+          <button class="th" data-theme="theme-flame"><i style="--c:#E8734A"></i>火花</button>
+          <button class="th" data-theme="theme-star"><i style="--c:#7C5FC0"></i>星夜</button>
+          <button class="th" data-theme="theme-bubble"><i style="--c:#C9A7EC"></i>泡泡</button>
+        </div>
+        <p class="tip">演示为矢量部件版，逻辑与参数同手表端；真机形象为右侧 5 套预设（帧序列实现，见上）。点击不产生整图跳动 —— 部位动效与切换效果即“约定动作”。</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ================= 4. 形象方案 ================= -->
+<!-- ================= 4. 形象体系 ================= -->
 <section>
-  <h2>形象方案 <small>预设开箱即用，AI 在此基础上有控改动</small></h2>
+  <h2>形象体系 v2 <small>口径核对 → 统一规则</small></h2>
+
   <div class="card">
-    <div class="skins">
-      <div class="skin"><img src="assets/skin/skin1.jpg" alt="默认电气鼠"><b>默认电气鼠</b></div>
-      <div class="skin"><img src="assets/skin/skin2.jpg" alt="晨跑冲刺"><b>晨跑冲刺</b></div>
-      <div class="skin"><img src="assets/skin/skin3.jpg" alt="火花开怀"><b>火花开怀</b></div>
-      <div class="skin"><img src="assets/skin/skin4.jpg" alt="星夜小巫师"><b>星夜小巫师</b></div>
-      <div class="skin"><img src="assets/skin/skin5.jpg" alt="泡泡飞跃"><b>泡泡飞跃</b></div>
+    <b style="font-size:15px">先核对：同一批素材，三套口径并存（混乱来源）</b>
+    <table class="audit" style="margin-top:10px">
+      <tr><th style="width:150px">出处</th><th>名称</th><th style="width:44%">问题</th></tr>
+      <tr>
+        <td class="where">手表固件 · 皮肤页<br><span style="font-size:11px">ui_common.c</span></td>
+        <td>初始 / 运动蓝 / 烈焰红 / 星河紫 / 彩虹</td>
+        <td><bad>纯颜色命名</bad>，但素材实为“换装主题”（头带 / 巫师帽 / 泡泡），名不副实</td>
+      </tr>
+      <tr>
+        <td class="where">汇报页 · 素材名<br><span style="font-size:11px">skin1-5.jpg</span></td>
+        <td>默认电气鼠 / 晨跑冲刺 / 火花开怀 / 星夜小巫师 / 泡泡飞跃</td>
+        <td><bad>与固件显示名不一致</bad>，同一素材两套名字</td>
+      </tr>
+      <tr>
+        <td class="where">手表固件 · 形象页<br><span style="font-size:11px">ui_avatar.c</span></td>
+        <td>星云猫（默认）/ 奶油犬 / 薄荷兔</td>
+        <td><bad>素材未到位的纯文字占位</bad>：全项目只有一只电气鼠的图，却列出三个物种可选，误导“能换宠物”</td>
+      </tr>
+    </table>
+    <ul class="flaws">
+      <li>一套素材、两套命名，且“形象 / 皮肤”两个维度混用 —— 素材实为“角色 + 配饰 + 背景”烘焙一体</li>
+      <li>演示角色（电气鼠）与固件文案（猫犬兔）互不呼应，看到页面不知道宠物到底是谁</li>
+      <li>命名风格随机：颜色系（运动蓝）、动作系（晨跑冲刺）、职业系（小巫师）混在一起</li>
+    </ul>
+  </div>
+
+  <div class="charcard">
+    <img src="assets/skin/skin1.jpg" alt="伏伏原色立绘">
+    <div class="info">
+      <b>伏伏（FuFu）</b>&nbsp;<span class="id">角色 ID：fufu</span>
+      <p><b>定位：</b>元气电气鼠 —— 精力过剩、好奇心强、爱表现（被夸就跳舞）。设定：主人的步数给它“充电”，越爱运动它越活泼，与手环的运动激励逻辑天然契合。</p>
+      <div class="dna"><b style="font-size:13px">角色 DNA（全主题恒定）：</b>
+        <span>⚡ 闪电尾</span><span>明黄主体</span><span>深棕耳尖</span><span>粉腮红</span><span>大头小身</span>
+      </div>
     </div>
-    <p class="note" style="background:transparent;border:none;padding:10px 0 0;color:#5A554E;font-size:13.5px">
-      5 只是<b>不同的角色 + 配饰 + 背景主题</b>（不是换色），全部原创、已入库可直接上表；每套配一动作姿态帧组，即“一套会动的皮肤”。
-    </p>
+  </div>
+
+  <div class="card" style="margin-top:12px">
+    <b style="font-size:15px">统一命名：一只角色 × 5 套主题皮肤（显示名「伏伏 · 主题词」，机器 ID 不变）</b>
+    <div class="skins" style="margin-top:12px">
+      <div class="skin"><img src="assets/skin/skin1.jpg" alt="伏伏·日常"><b>伏伏 · 日常</b><span class="sid">skin_id: default</span></div>
+      <div class="skin"><img src="assets/skin/skin2.jpg" alt="伏伏·晨跑"><b>伏伏 · 晨跑</b><span class="sid">skin_id: sport_blue</span></div>
+      <div class="skin"><img src="assets/skin/skin3.jpg" alt="伏伏·火花"><b>伏伏 · 火花</b><span class="sid">skin_id: flame_red</span></div>
+      <div class="skin"><img src="assets/skin/skin4.jpg" alt="伏伏·星夜"><b>伏伏 · 星夜</b><span class="sid">skin_id: star_purple</span></div>
+      <div class="skin"><img src="assets/skin/skin5.jpg" alt="伏伏·泡泡"><b>伏伏 · 泡泡</b><span class="sid">skin_id: rainbow</span></div>
+    </div>
   </div>
 
   <div class="keys">
-    <div class="key"><span class="num">1</span><b>预设打底</b>
-      <p>构图、角色、尺寸以预设为基准锁定，模型不自由发挥 → 出图必然是同一只宠物、同一视角、同一画幅。</p></div>
-    <div class="key"><span class="num">2</span><b>只改用户要的点</b>
-      <p>提示词 = 预设固定描述 + 用户改动点（“换海滩背景”“戴圣诞帽”），范围可控，一次成功率大幅提高。</p></div>
-    <div class="key"><span class="num">3</span><b>出图即用</b>
-      <p>1024 原图自动居中裁 5:4 → 缩放到 220×176 JPG；姿态帧以主图为基准批量生成，无需人工修图。</p></div>
-  </div>
-  <div class="note">
-    <b>已打通：</b>火山方舟 Seedream 图生图接口返回 200，生成能力实测可用；后端接口封装由组员四对接中。
+    <div class="key"><span class="num">1</span><b>唯一主角 + 主题皮肤</b>
+      <p>舞台同一时间只有一只角色：伏伏。<b>默认形象 = 伏伏 · 日常</b>（default）。换肤 = 换“配饰 + 场景”，不是换宠物。</p></div>
+    <div class="key"><span class="num">2</span><b>角色 DNA 锁定</b>
+      <p>明黄主体、深棕耳尖、粉腮红、闪电尾全主题恒定；主题只换配饰与背景 —— 这正是 AI 生图“预设打底、只改用户要的点”的契约基础。</p></div>
+    <div class="key"><span class="num">3</span><b>切换逻辑</b>
+      <p>皮肤页点缩略图 → 250ms 淡入淡出换场景（不做整图跳动）；单击 = 局部开心反应；双击 = 欢快模式。</p></div>
+    <div class="key"><span class="num">4</span><b>云端角色池（原三款归位）</b>
+      <p>星云猫 / 奶油犬 / 薄荷兔降级为“后续角色池”：素材到位后<b>各自带一套主题皮肤组</b>上线，切换角色 = 整组换形象，不做三物种同屏文字占位。</p></div>
   </div>
 </section>
 
@@ -366,9 +510,10 @@
     <li><b>动效框架 + 6 个核心动作</b>：代码全部落地<i>已完成</i></li>
     <li><b>5 套预设形象 + 素材管线</b>：生成 → 裁切 → 压缩 → 入库，脚本化可一键复现<i>已完成</i></li>
     <li><b>图片接入层</b>：真机开一个编译开关即从几何替身切真图<i>已完成</i></li>
+    <li><b>形象体系 v2 定稿</b>：三套口径核对完毕，1 角色 × 5 主题命名 / DNA / 切换逻辑冻结，演示页局部动效改造完成<i>本次</i></li>
     <li class="ing"><b>AI 生图后端接口</b>：密钥与模型配置完毕、基准已验通，联调中<i>组员四</i></li>
     <li class="ing"><b>真机适配</b>：固件编译通过后做 7 项手感校准（延迟 / 双击窗口 / 帧率 / 震动）</li>
-    <li><b>下一步：</b>睡觉、升级庆祝、步数达标等进阶动作 → AI 定制皮肤页上线 → 课堂演示串联</li>
+    <li><b>下一步：</b>固件显示名同步「伏伏 · XX」并重生成字体子集 → 睡觉 / 升级庆祝等进阶动作 → AI 定制皮肤页上线 → 课堂演示串联</li>
   </ul>
 </section>
 
@@ -377,49 +522,87 @@
 </div>
 
 <script>
-/* 250ms 单击/双击判别（与真机 ui_anim 同逻辑） */
+/* 250ms 单击/双击判别（与真机 ui_anim 同逻辑）；触发均为局部动效，整图不位移 */
 (function () {
   var stage = document.getElementById('stage');
   var pet = document.getElementById('pet');
   var tip = document.getElementById('floatTip');
+  var themesBox = document.getElementById('themes');
   var timer = null;   /* 单击判定窗口 */
   var guard = null;   /* 兜底清理：animationend 丢失也不卡死 */
+  var currentTheme = 'theme-default';
 
   function cleanup() {
     if (guard) { clearTimeout(guard); guard = null; }
     pet.removeEventListener('animationend', finish);
     pet.classList.remove('happy');
-    pet.classList.remove('dance');
+    pet.classList.remove('cheer');
     pet.classList.remove('excited');
     tip.classList.remove('show');
   }
   function finish(e) {
-    /* 只响应整身动画结束，忽略子部件（眨眼/摆尾）冒泡上来的事件 */
-    if (e && e.animationName !== 'happyJump' && e.animationName !== 'danceSway') return;
+    /* 只响应单击动作的结束事件，忽略子部件（眨眼/摆尾/待机摆动）冒泡 */
+    if (e && e.animationName !== 'earHop') return;
     cleanup();
+  }
+  /* 点击冒出的小电花粒子 */
+  function spawnZap(mark) {
+    var s = document.createElement('span');
+    s.className = 'zap';
+    s.textContent = mark;
+    s.style.left = (96 + Math.round(Math.random() * 56 - 28)) + 'px';
+    s.style.top = (26 + Math.round(Math.random() * 18)) + 'px';
+    s.addEventListener('animationend', function () { s.remove(); });
+    stage.appendChild(s);
+  }
+  function localHappy() {           /* 单击：局部开心反应 */
+    tip.textContent = '开心！';
+    tip.classList.add('show');
+    pet.classList.add('excited');
+    pet.classList.add('happy');
+    spawnZap('⚡');
+    pet.addEventListener('animationend', finish);
+    guard = setTimeout(cleanup, 1000);
+  }
+  function localCheer() {           /* 双击：欢快模式 2 秒 */
+    tip.textContent = '摇起来！';
+    tip.classList.add('show');
+    pet.classList.add('excited');
+    pet.classList.add('cheer');
+    spawnZap('✨');
+    spawnZap('⚡');
+    guard = setTimeout(cleanup, 2100);
   }
 
   stage.addEventListener('click', function () {
-    if (pet.classList.contains('dance') || pet.classList.contains('happy')) return;
-    if (timer) {           /* 250ms 内第二下 → 双击：跳舞 */
+    if (pet.classList.contains('cheer') || pet.classList.contains('happy')) return;
+    if (timer) {           /* 250ms 内第二下 → 双击：欢快模式 */
       clearTimeout(timer); timer = null;
-      tip.textContent = '跳舞！';
-      tip.classList.add('show');
-      pet.classList.add('excited');
-      pet.classList.add('dance');
-      pet.addEventListener('animationend', finish);
-      guard = setTimeout(cleanup, 2100);
+      localCheer();
       return;
     }
-    timer = setTimeout(function () {   /* 无第二下 → 单击：开心跳 */
+    timer = setTimeout(function () {   /* 无第二下 → 单击：开心反应 */
       timer = null;
-      tip.textContent = '开心跳！';
-      tip.classList.add('show');
-      pet.classList.add('excited');
-      pet.classList.add('happy');
-      pet.addEventListener('animationend', finish);
-      guard = setTimeout(cleanup, 700);
+      localHappy();
     }, 250);
+  });
+
+  /* 主题切换：250ms 淡入淡出（同真机换肤参数），桌面/移动同一逻辑 */
+  themesBox.addEventListener('click', function (e) {
+    var btn = e.target.closest('.th');
+    if (!btn) return;
+    var t = btn.getAttribute('data-theme');
+    if (t === currentTheme || pet.classList.contains('switching')) return;
+    Array.prototype.forEach.call(themesBox.children, function (b) {
+      b.classList.toggle('active', b === btn);
+    });
+    pet.classList.add('switching');            /* 淡出 120ms */
+    setTimeout(function () {
+      stage.classList.remove(currentTheme);
+      stage.classList.add(t);
+      currentTheme = t;
+      pet.classList.remove('switching');       /* 淡入 120ms */
+    }, 120);
   });
 })();
 </script>
