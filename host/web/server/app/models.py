@@ -175,10 +175,20 @@ class PetGenerationJob(Base):
     progress: Mapped[int] = mapped_column(Integer, default=0)
     input_json: Mapped[dict] = mapped_column(JSON)
     provider: Mapped[str] = mapped_column(String(50), default="mock")
+    model: Mapped[str] = mapped_column(String(100), default="mock-image-v1", index=True)
     source: Mapped[str] = mapped_column(String(30), default="mock_asset")
+    request_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cost_microusd: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
@@ -189,14 +199,35 @@ class PetAsset(Base):
     owner_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     generation_job_id: Mapped[str | None] = mapped_column(ForeignKey("pet_generation_jobs.id"), unique=True)
     image_url: Mapped[str] = mapped_column(Text)
+    storage_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     name: Mapped[str] = mapped_column(String(80))
     sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     byte_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     mime_type: Mapped[str] = mapped_column(String(80), default="image/png")
+    model: Mapped[str] = mapped_column(String(100), default="mock-image-v1")
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     favorite: Mapped[bool] = mapped_column(Boolean, default=False)
     source: Mapped[str] = mapped_column(String(30), default="mock_asset")
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CoachingGeneration(Base):
+    __tablename__ = "coaching_generations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(40), index=True)
+    model: Mapped[str] = mapped_column(String(100))
+    advice_json: Mapped[list] = mapped_column(JSON)
+    insight_json: Mapped[dict] = mapped_column(JSON)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
 class SyncLog(Base):

@@ -13,6 +13,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ["VELAPET_DATABASE_URL"] = f"sqlite:///{test_db.as_posix()}"
 os.environ["VELAPET_SEED_DEMO"] = "false"
 os.environ["VELAPET_COOKIE_SECURE"] = "false"
+os.environ["VELAPET_IMAGE_STORAGE_DIR"] = str(Path(tempfile.gettempdir()) / "velapet_test_images")
+os.environ["VELAPET_TEXT_AI_PROVIDER"] = "mock"
+os.environ["VELAPET_TEXT_AI_API_KEY"] = ""
+os.environ["VELAPET_TEXT_AI_MODEL"] = ""
+os.environ["VELAPET_IMAGE_AI_PROVIDER"] = "mock"
+os.environ["VELAPET_IMAGE_AI_API_KEY"] = ""
+os.environ["VELAPET_IMAGE_AI_MODEL"] = ""
 
 from app.database import Base, SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402

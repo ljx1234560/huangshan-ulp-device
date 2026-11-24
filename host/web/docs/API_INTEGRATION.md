@@ -96,6 +96,7 @@ range=day|week|month&start_date=2026-11-01&end_date=2026-11-18
 - `POST /api/v1/pets/generation-jobs`
 - `GET /api/v1/pets/generation-jobs`
 - `GET /api/v1/pets/generation-jobs/{job_id}`
+- `GET /api/v1/pets/assets/{asset_id}/content`：登录用户读取自己的受保护图片文件。
 - `POST /api/v1/pets/assets/{asset_id}/favorite`
 - `POST /api/v1/pets/assets/{asset_id}/set-current`
 
@@ -105,27 +106,72 @@ range=day|week|month&start_date=2026-11-01&end_date=2026-11-18
 - `asset_id`：完成后的图片资源，带 owner_id。
 - `pet_instance_id`：设备端宠物实例。
 
-设备快照 `version` 必须单调递增；旧版本返回 409。level、EXP、任务、奖励和皮肤来自设备快照，Web/AI 不能修改这些字段。Mock 图片 Provider 也会真实写入数据库，因此刷新后仍可查询任务和资源。
+设备快照 `version` 必须单调递增；旧版本返回 409。level、EXP、任务、奖励和皮肤来自设备快照，Web/AI 不能修改这些字段。
+
+生成任务状态为 `queued → running → succeeded|failed`。任务、尝试次数和错误写入数据库；独立 `scripts/image_worker.py` 从数据库领取任务，服务重启时将超过阈值的旧 `running` 任务恢复为 `queued`。同一用户相同参数的活动任务会复用，避免重复点击立即创建第二个付费任务。默认每日限额 10 次、并发限额 1 个，均可配置。
+
+Mock、OpenAI 与豆包 Seedream Provider 都经过相同的本地存储流程。服务端只接受 Base64 图片内容，不把供应商临时 URL 当作可信资源；Pillow 校验真实 PNG/WebP/JPEG 格式、64–4096 像素尺寸和最大字节数。文件名只使用服务端生成的资源 UUID，数据库保存 storage key、SHA-256、MIME、尺寸和模型。图片目录不可作为公开静态目录暴露。
 
 ### AI
 
-- `GET /api/v1/ai/coaching`
+- `POST /api/v1/ai/coaching`：生成并保存一条新建议，需要登录和 CSRF。
+- `GET /api/v1/ai/coaching`：读取当前用户最近一次建议卡片，兼容原有仪表盘契约。
+- `GET /api/v1/ai/coaching/history`：读取当前用户最近 30 条完整生成记录。
 
-默认 Provider 为 `mock`。`existing` Provider 兼容硬件仓库 `host/ai-backend` 已有的：
+文本与图片 Provider 独立配置：
+
+```dotenv
+VELAPET_TEXT_AI_PROVIDER=mock|deepseek|existing_velapet
+VELAPET_TEXT_AI_API_KEY=
+VELAPET_TEXT_AI_BASE_URL=https://api.deepseek.com
+VELAPET_TEXT_AI_MODEL=
+VELAPET_TEXT_AI_TIMEOUT_SECONDS=20
+VELAPET_TEXT_AI_SERVICE_URL=http://127.0.0.1:8010
+VELAPET_TEXT_AI_DEVICE_TOKEN=
+VELAPET_IMAGE_AI_PROVIDER=mock|openai|doubao
+VELAPET_IMAGE_AI_API_KEY=
+VELAPET_IMAGE_AI_BASE_URL=https://api.openai.com/v1
+VELAPET_IMAGE_AI_MODEL=
+VELAPET_IMAGE_AI_TIMEOUT_SECONDS=120
+VELAPET_IMAGE_AI_SIZE=1024x1024
+VELAPET_IMAGE_AI_QUALITY=medium
+VELAPET_IMAGE_AI_OUTPUT_FORMAT=png
+VELAPET_IMAGE_AI_BACKGROUND=auto
+VELAPET_IMAGE_AI_RESPONSE_FORMAT=b64_json
+VELAPET_IMAGE_AI_WATERMARK=false
+VELAPET_IMAGE_STORAGE_DIR=./data/pet-images
+VELAPET_IMAGE_MAX_BYTES=10485760
+VELAPET_IMAGE_DAILY_LIMIT=10
+VELAPET_IMAGE_CONCURRENT_LIMIT=1
+VELAPET_IMAGE_JOB_MAX_ATTEMPTS=2
+VELAPET_IMAGE_JOB_STALE_MINUTES=10
+```
+
+DeepSeek 模型名称不提供猜测性的默认值，必须按账户实际权限设置。后端调用兼容 OpenAI 的 `POST /chat/completions`，使用 Bearer API Key 和 JSON Output；Prompt 包含完整目标 JSON 示例，输出上限为 1,600 token，并通过禁止额外字段的严格 Pydantic Schema 校验。空白内容、JSON 语法错误、Schema 不匹配和 `finish_reason=length` 截断会返回不同错误码，并最多自动重试一次。日志只记录错误类别、模型、finish reason、尝试次数、耗时和 Token 用量，不记录 Key、完整响应或个人运动数据。HTTP 402、429、408/504、401/403、网络错误和非法模型响应分别映射为明确 API 错误，真实调用失败时不会切换到 Mock。
+
+`existing_velapet` Provider 继续兼容硬件仓库 `host/ai-backend` 已有的：
 
 ```text
 POST /api/v1/chat
 X-VelaPet-Token: <只存在服务端的 token>
 ```
 
-后端只传递受限活动摘要和宠物上下文。AI 响应是建议，不是医疗判断，也不能直接写 EXP、任务奖励或设备状态。外部 Provider 不可用时返回可解释的本地降级建议。
+后端读取当前用户最近 30 天 `activity_daily`，计算日均步数、日均活动分钟、趋势、目标完成天数及规则安全范围（3,000–20,000 步且以近期基线 ±10% 为主），只把这些汇总和宠物名字传给文本 Provider。少于 3 个记录日时返回规则生成的“数据不足”说明，不调用真实模型，也不补造缺失历史。
+
+响应固定包含：今日总结、今日建议、推荐理由、每周计划、萌宠鼓励五类卡片。生成记录保存在 `coaching_generations`，按 `user_id` 隔离。AI 响应属于一般健身建议，不作疾病诊断，也不能写运动记录、EXP、任务奖励、等级或设备状态。
+
+图片 Provider 支持 `mock`、`openai` 和 `doubao`。OpenAI 与火山方舟都调用各自 Base URL 下的 `POST /images/generations`；豆包默认 Base URL 为 `https://ark.cn-beijing.volces.com/api/v3`，强制 `response_format=b64_json`，并支持 watermark 控制。模型名称必须按账户权限显式配置，API Key 只存在后端。
+
+豆包请求参数按模型族校验：Seedream 5.5 支持 PNG/JPEG 与 `auto/transparent/opaque`；5.0 pro/flash 支持 PNG/JPEG 与 `transparent/opaque`；5.0 lite 支持 PNG/JPEG 但不发送 background；4.5/4.0 固定 JPEG，也不发送 output_format/background。无法识别的模型版本会在调用前拒绝，避免猜测参数能力。返回内容须为 Base64；URL 响应、非法 Base64、声明格式不一致或真实文件格式不一致均失败，不会自动下载临时 URL。
+
+402/额度型 429、普通 429、401/403、内容拒绝、超时、5xx 和非法响应分别处理；真实失败绝不回退 Mock。超时可能已经在供应商侧产生费用，因此不自动重试；明确的限流或 5xx 才允许有界重试，且不能宣称供应商幂等或绝不重复计费。
 
 ### 管理端
 
 - `GET /api/v1/admin/metrics/overview`
 - `GET /api/v1/admin/users`
 - `GET /api/v1/admin/devices`
-- `GET /api/v1/admin/metrics/ai-services`
+- `GET /api/v1/admin/metrics/ai-services?start_date=...&end_date=...`
 - `GET /api/v1/admin/metrics/retention`
 - `GET /api/v1/admin/audit-logs`
 
@@ -152,12 +198,13 @@ X-VelaPet-Token: <只存在服务端的 token>
 - `devices`、`device_bindings`、`bridge_sessions`
 - `activity_records`、`activity_daily`
 - `pet_snapshots`、`pet_assets`、`pet_generation_jobs`
+- `coaching_generations`
 - `sync_logs`、`user_events`、`admin_audit_logs`
 
-迁移：`20261118_0001_initial.py`、`20261118_0002_ble_sync.py` 与 `20261119_0003_sync_reliability.py`。
+迁移：`20261118_0001_initial.py`、`20261118_0002_ble_sync.py`、`20261119_0003_sync_reliability.py`、`20261124_0004_text_ai_coaching.py` 与 `20261124_0005_image_generation.py`。
 
 ```powershell
-Set-Location 'E:\projects\huangshan-ulp-device\host\web\server'
+Set-Location 'E:\作业\velapet\web\server'
 $env:VELAPET_DATABASE_URL = 'postgresql+psycopg://velapet:velapet_dev@localhost:5432/velapet'
 .\.venv\Scripts\python.exe -m alembic upgrade head
 ```

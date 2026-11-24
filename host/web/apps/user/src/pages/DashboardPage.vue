@@ -21,7 +21,7 @@ async function load() {
     const [activityResult, petResult, adviceResult, devicesResult] = await Promise.all([
       activityApi.daily(range.value),
       petApi.current(),
-      aiApi.coaching(),
+      aiApi.latest(),
       deviceApi.list(),
     ])
     activity.value = activityResult

@@ -1,6 +1,8 @@
 node_modules/
 dist/
 coverage/
+*.egg-info/
+.tmp/
 
 # Local configuration and credentials
 .env
@@ -17,11 +19,13 @@ coverage/
 venv/
 __pycache__/
 .pytest_cache/
+.pytest-tmp*/
 .coverage
 *.py[cod]
 *.db
 *.sqlite
 *.sqlite3
+server/data/
 
 # Logs, editor and operating-system files
 *.log

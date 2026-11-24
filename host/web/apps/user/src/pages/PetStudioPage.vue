@@ -17,6 +17,13 @@ const generating = ref(false)
 const saved = ref(false)
 let pollTimer: ReturnType<typeof setTimeout> | undefined
 
+function providerLabel(item?: PetGenerationJob, compact = false) {
+  if (!item || item.source === 'mock_asset' || item.provider === 'mock') return compact ? 'Mock' : 'MOCK 模拟生成'
+  if (item.provider === 'doubao') return compact ? 'Doubao Seedream' : 'DOUBAO SEEDREAM 真实生成'
+  if (item.provider === 'openai') return compact ? 'OpenAI' : 'OPENAI 真实生成'
+  return compact ? 'AI' : 'AI 真实生成'
+}
+
 const species = [
   { value: 'fox', label: '星狐', icon: '◇' },
   { value: 'cat', label: '云猫', icon: '◉' },
@@ -34,13 +41,15 @@ async function poll(id: string) {
     const result = await petApi.generationJob(id)
     job.value = result
     if (result.status === 'succeeded') {
-      if (!history.value.some((item) => item.id === result.id)) history.value.unshift(result)
+      saved.value = !!result.favorite
+      history.value = await petApi.generationHistory()
       generating.value = false
-      ElMessage.success('演示宠物形象已准备好')
+      ElMessage.success(result.source === 'ai_generated' ? 'AI 萌宠形象生成成功' : 'Mock 萌宠形象已准备好')
       return
     }
     if (result.status === 'failed') {
       generating.value = false
+      ElMessage.error(result.error || '图片生成失败')
       return
     }
     pollTimer = setTimeout(() => poll(id), 650)
@@ -66,12 +75,15 @@ async function generate() {
   }
 }
 
-async function savePet() {
+async function toggleFavorite() {
   if (!job.value?.assetId) return ElMessage.warning('生成任务尚未产出可收藏的资源')
   try {
-    await petApi.favoriteAsset(job.value.assetId, true)
-    saved.value = true
-    ElMessage.success(apiMode === 'mock' ? '已持久化到本机演示收藏' : '已保存到账号收藏')
+    const asset = await petApi.favoriteAsset(job.value.assetId, !saved.value)
+    saved.value = asset.favorite
+    job.value.favorite = asset.favorite
+    const item = history.value.find((entry) => entry.id === job.value?.id)
+    if (item) item.favorite = asset.favorite
+    ElMessage.success(asset.favorite ? '已加入收藏' : '已取消收藏')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '收藏失败')
   }
@@ -81,6 +93,11 @@ async function setCurrent() {
   if (!job.value?.assetId) return ElMessage.warning('生成任务尚未产出宠物资源')
   await petApi.setCurrentAsset(job.value.assetId)
   ElMessage.success(apiMode === 'mock' ? '已持久化为当前演示形象' : '已设置为当前萌宠形象')
+}
+
+function selectHistory(item: PetGenerationJob) {
+  job.value = item
+  saved.value = !!item.favorite
 }
 
 onMounted(async () => {
@@ -95,9 +112,9 @@ onBeforeUnmount(() => clearTimeout(pollTimer))
   <div class="page-stack">
     <div class="page-heading">
       <div><h2>AI 萌宠工坊</h2><p>组合物种、配色与性格，创造属于你的运动伙伴。</p></div>
-      <span class="studio-status">✦ {{ apiMode === 'mock' ? 'MOCK GENERATION LAB' : 'PERSISTED GENERATION JOBS' }}</span>
+      <span class="studio-status">✦ {{ apiMode === 'mock' ? 'MOCK GENERATION LAB' : 'DATABASE IMAGE JOBS' }}</span>
     </div>
-    <el-alert :title="apiMode === 'mock' ? '当前未连接真实图像生成服务。任务、收藏和当前形象会持久化到浏览器，图片仍为内置示例。' : '生成任务、资源归属、收藏与当前形象将保存到数据库；当前 Provider 仍可配置为 Mock。'" :type="apiMode === 'mock' ? 'warning' : 'success'" show-icon :closable="false" />
+    <el-alert :title="apiMode === 'mock' ? '浏览器 Mock 模式：任务、收藏和当前形象保存在本机，并明确标记为模拟生成。' : 'Real 模式：任务、受保护图片、收藏和当前形象保存在服务端；具体来源会显示 Mock、OpenAI 或 Doubao Seedream。'" :type="apiMode === 'mock' ? 'warning' : 'success'" show-icon :closable="false" />
     <section class="studio-grid">
       <article class="surface studio-form">
         <div class="step-heading"><span>01</span><div><h3>选择萌宠原型</h3><p>先决定陪伴你的基础形态</p></div></div>
@@ -125,14 +142,14 @@ onBeforeUnmount(() => clearTimeout(pollTimer))
       </article>
 
       <aside class="surface preview-panel">
-        <div class="preview-top"><span>LIVE PREVIEW</span><span class="mock-chip">内置示例</span></div>
+        <div class="preview-top"><span>LIVE PREVIEW</span><span class="mock-chip">{{ providerLabel(job) }}</span></div>
         <div class="preview-stage" :class="{ generating }">
           <div class="stage-orbit one" /><div class="stage-orbit two" />
           <img v-if="job?.status === 'succeeded' || !job" :src="job?.imageUrl || '/pets/lumi.png'" :alt="input.name + ' 的内置示例形象'" />
           <div v-if="generating" class="generation-overlay">
             <el-progress type="circle" :percentage="job?.progress || 8" color="#7562eb" :width="90" />
-            <strong>{{ job?.status === 'queued' ? '正在排队' : '正在组合特征' }}</strong>
-            <p>{{ apiMode === 'mock' ? 'Mock 异步任务 · 不会调用外部模型' : '数据库异步任务 · Provider 由后端配置' }}</p>
+            <strong>{{ job?.status === 'queued' ? '正在排队' : '正在生成并校验图片' }}</strong>
+            <p>{{ apiMode === 'mock' ? 'Mock 异步任务 · 不会调用付费模型' : '数据库任务 · 可在服务重启后恢复' }}</p>
           </div>
           <div v-if="job?.status === 'failed'" class="generation-overlay error">
             <strong>生成失败</strong><p>{{ job.error }}</p><button class="ghost-button" @click="generate">重新生成</button>
@@ -143,7 +160,7 @@ onBeforeUnmount(() => clearTimeout(pollTimer))
           <span class="personality">{{ { energetic: '活泼热情', gentle: '温柔安静', curious: '好奇探索' }[input.personality] }}</span>
         </div>
         <div class="preview-actions">
-          <button class="ghost-button" :disabled="job?.status !== 'succeeded'" @click="savePet">{{ saved ? '♥ 已收藏' : '♡ 保存形象' }}</button>
+          <button class="ghost-button" :disabled="job?.status !== 'succeeded'" @click="toggleFavorite">{{ saved ? '♥ 取消收藏' : '♡ 收藏形象' }}</button>
           <button class="primary-button" :disabled="job?.status !== 'succeeded'" @click="setCurrent">设为当前萌宠</button>
         </div>
       </aside>
@@ -152,12 +169,12 @@ onBeforeUnmount(() => clearTimeout(pollTimer))
       <div class="section-title"><div><h3>历史生成记录</h3><p>{{ apiMode === 'mock' ? '浏览器持久化的 Mock 任务记录' : '账号数据库中的生成任务记录' }}</p></div></div>
       <el-empty v-if="history.length === 0" description="还没有生成记录，先创造你的第一只萌宠吧" :image-size="82" />
       <div v-else class="history-row">
-        <article v-for="item in history" :key="item.id"><img :src="item.imageUrl" alt="历史示例萌宠" /><div><strong>{{ item.input.name }}</strong><span>{{ new Date(item.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }} · Mock 素材</span></div></article>
+        <article v-for="item in history" :key="item.id" :class="{ active: item.id === job?.id }" @click="selectHistory(item)"><img v-if="item.imageUrl" :src="item.imageUrl" alt="历史萌宠作品" /><div class="history-placeholder" v-else>{{ item.progress }}%</div><div><strong>{{ item.favorite ? '♥ ' : '' }}{{ item.input.name }}</strong><span>{{ new Date(item.createdAt).toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour: '2-digit', minute: '2-digit' }) }}</span><span>{{ providerLabel(item, true) }} · {{ item.model || item.status }}</span></div></article>
       </div>
     </section>
   </div>
 </template>
 
 <style scoped>
-.studio-status,.mock-chip{padding:7px 10px;border-radius:99px;background:#efecff;color:#6250d3;font-size:9px;font-weight:700;letter-spacing:.7px}.studio-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(340px,.78fr);gap:20px;align-items:start}.studio-form{padding:26px}.step-heading{display:flex;gap:11px;align-items:center;margin:4px 0 13px}.step-heading>span{width:30px;height:30px;display:grid;place-items:center;border-radius:10px;color:#6552d9;background:#efecff;font-size:10px;font-weight:700}.step-heading h3{margin:0;font-size:15px}.step-heading p{margin:2px 0 0;color:#9692a5;font-size:10px}.choice-grid{display:grid;gap:10px;margin-bottom:25px}.choice-grid.three{grid-template-columns:repeat(3,1fr)}.choice-grid button{padding:15px;border:1px solid #ebe9f2;border-radius:14px;background:#fafafd;cursor:pointer;color:#6e6a7c}.choice-grid button b{display:block;font-size:25px;margin-bottom:5px}.choice-grid button span{font-size:12px;font-weight:700}.choice-grid button.selected{border-color:#8979ec;color:#5f4dd0;background:#f2efff;box-shadow:0 0 0 2px rgba(112,94,225,.08)}.color-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:23px}.color-row button{padding:9px 5px;border:1px solid #eceaf3;border-radius:12px;background:white;cursor:pointer}.color-row i{display:block;width:23px;height:23px;border-radius:50%;margin:0 auto 5px;box-shadow:inset 0 0 0 3px rgba(255,255,255,.5)}.color-row span{font-size:10px;color:#7d798b}.color-row button.selected{border-color:#8271e9;background:#f7f5ff}.form-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.form-two label,.field label{display:block;margin:0 0 7px;color:#777385;font-size:11px;font-weight:700}.field{margin-top:16px}.studio-form :deep(.el-input__wrapper),.studio-form :deep(.el-textarea__inner),.studio-form :deep(.el-select__wrapper){border-radius:11px;box-shadow:0 0 0 1px #e6e4ef inset}.generate-button{width:100%;height:49px;margin-top:21px;border:0;border-radius:14px;color:white;background:linear-gradient(135deg,#7967ee,#5542cb);box-shadow:0 11px 23px rgba(89,70,210,.27);font-weight:700;cursor:pointer}.generate-button:disabled{opacity:.7;cursor:wait}.preview-panel{padding:18px;position:sticky;top:115px}.preview-top{display:flex;justify-content:space-between;align-items:center;padding:3px 4px 14px;color:#9692a6;font-size:9px;font-weight:700;letter-spacing:1px}.preview-stage{height:420px;position:relative;overflow:hidden;display:grid;place-items:center;border-radius:20px;background:radial-gradient(circle at 50% 54%,rgba(255,255,255,.85),transparent 29%),linear-gradient(145deg,#eeebff,#dcd7ff 55%,#c9e9ff)}.preview-stage::before{content:'✦';position:absolute;top:12%;left:13%;font-size:21px;color:white}.preview-stage img{width:92%;max-width:410px;position:relative;z-index:2;filter:drop-shadow(0 22px 22px rgba(63,47,148,.22));transition:.3s}.preview-stage.generating img{filter:blur(7px);opacity:.35}.stage-orbit{position:absolute;border:1px solid rgba(100,80,210,.13);border-radius:50%}.stage-orbit.one{width:310px;height:310px}.stage-orbit.two{width:250px;height:250px}.generation-overlay{position:absolute;inset:0;z-index:3;display:grid;place-content:center;justify-items:center;gap:10px;background:rgba(246,244,255,.77);backdrop-filter:blur(5px)}.generation-overlay strong{font-size:14px}.generation-overlay p{margin:0;color:#777288;font-size:10px}.generation-overlay.error{color:#b4564a}.pet-nameplate{display:flex;align-items:center;justify-content:space-between;padding:17px 5px 12px}.pet-nameplate span{color:#9793a4;font-size:10px}.pet-nameplate h3{margin:3px 0 0;font-size:22px}.personality{padding:6px 8px;border-radius:9px;background:#f1eff9}.preview-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.preview-actions button:disabled{opacity:.45;cursor:not-allowed}.history-row{display:flex;gap:12px;overflow-x:auto}.history-row article{min-width:190px;display:flex;align-items:center;gap:9px;padding:10px;border:1px solid #eceaf2;border-radius:14px}.history-row img{width:58px;height:58px;object-fit:contain;border-radius:11px;background:#efecff}.history-row strong,.history-row span{display:block}.history-row span{margin-top:4px;color:#9793a4;font-size:9px}@media(max-width:1000px){.studio-grid{grid-template-columns:1fr}.preview-panel{position:static}.preview-stage{height:370px}}@media(max-width:520px){.color-row{grid-template-columns:repeat(2,1fr)}.preview-stage{height:330px}.form-two{grid-template-columns:1fr}}
+.studio-status,.mock-chip{padding:7px 10px;border-radius:99px;background:#efecff;color:#6250d3;font-size:9px;font-weight:700;letter-spacing:.7px}.studio-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(340px,.78fr);gap:20px;align-items:start}.studio-form{padding:26px}.step-heading{display:flex;gap:11px;align-items:center;margin:4px 0 13px}.step-heading>span{width:30px;height:30px;display:grid;place-items:center;border-radius:10px;color:#6552d9;background:#efecff;font-size:10px;font-weight:700}.step-heading h3{margin:0;font-size:15px}.step-heading p{margin:2px 0 0;color:#9692a5;font-size:10px}.choice-grid{display:grid;gap:10px;margin-bottom:25px}.choice-grid.three{grid-template-columns:repeat(3,1fr)}.choice-grid button{padding:15px;border:1px solid #ebe9f2;border-radius:14px;background:#fafafd;cursor:pointer;color:#6e6a7c}.choice-grid button b{display:block;font-size:25px;margin-bottom:5px}.choice-grid button span{font-size:12px;font-weight:700}.choice-grid button.selected{border-color:#8979ec;color:#5f4dd0;background:#f2efff;box-shadow:0 0 0 2px rgba(112,94,225,.08)}.color-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:23px}.color-row button{padding:9px 5px;border:1px solid #eceaf3;border-radius:12px;background:white;cursor:pointer}.color-row i{display:block;width:23px;height:23px;border-radius:50%;margin:0 auto 5px;box-shadow:inset 0 0 0 3px rgba(255,255,255,.5)}.color-row span{font-size:10px;color:#7d798b}.color-row button.selected{border-color:#8271e9;background:#f7f5ff}.form-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.form-two label,.field label{display:block;margin:0 0 7px;color:#777385;font-size:11px;font-weight:700}.field{margin-top:16px}.studio-form :deep(.el-input__wrapper),.studio-form :deep(.el-textarea__inner),.studio-form :deep(.el-select__wrapper){border-radius:11px;box-shadow:0 0 0 1px #e6e4ef inset}.generate-button{width:100%;height:49px;margin-top:21px;border:0;border-radius:14px;color:white;background:linear-gradient(135deg,#7967ee,#5542cb);box-shadow:0 11px 23px rgba(89,70,210,.27);font-weight:700;cursor:pointer}.generate-button:disabled{opacity:.7;cursor:wait}.preview-panel{padding:18px;position:sticky;top:115px}.preview-top{display:flex;justify-content:space-between;align-items:center;padding:3px 4px 14px;color:#9692a6;font-size:9px;font-weight:700;letter-spacing:1px}.preview-stage{height:420px;position:relative;overflow:hidden;display:grid;place-items:center;border-radius:20px;background:radial-gradient(circle at 50% 54%,rgba(255,255,255,.85),transparent 29%),linear-gradient(145deg,#eeebff,#dcd7ff 55%,#c9e9ff)}.preview-stage::before{content:'✦';position:absolute;top:12%;left:13%;font-size:21px;color:white}.preview-stage img{width:92%;max-width:410px;position:relative;z-index:2;filter:drop-shadow(0 22px 22px rgba(63,47,148,.22));transition:.3s}.preview-stage.generating img{filter:blur(7px);opacity:.35}.stage-orbit{position:absolute;border:1px solid rgba(100,80,210,.13);border-radius:50%}.stage-orbit.one{width:310px;height:310px}.stage-orbit.two{width:250px;height:250px}.generation-overlay{position:absolute;inset:0;z-index:3;display:grid;place-content:center;justify-items:center;gap:10px;background:rgba(246,244,255,.77);backdrop-filter:blur(5px)}.generation-overlay strong{font-size:14px}.generation-overlay p{margin:0;color:#777288;font-size:10px}.generation-overlay.error{color:#b4564a}.pet-nameplate{display:flex;align-items:center;justify-content:space-between;padding:17px 5px 12px}.pet-nameplate span{color:#9793a4;font-size:10px}.pet-nameplate h3{margin:3px 0 0;font-size:22px}.personality{padding:6px 8px;border-radius:9px;background:#f1eff9}.preview-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.preview-actions button:disabled{opacity:.45;cursor:not-allowed}.history-row{display:flex;gap:12px;overflow-x:auto}.history-row article{min-width:210px;display:flex;align-items:center;gap:9px;padding:10px;border:1px solid #eceaf2;border-radius:14px;cursor:pointer}.history-row article.active{border-color:#806fea;background:#f7f5ff}.history-row img,.history-placeholder{width:58px;height:58px;flex:0 0 auto;display:grid;place-items:center;object-fit:contain;border-radius:11px;background:#efecff;color:#6654d1;font-size:11px}.history-row strong,.history-row span{display:block}.history-row span{margin-top:4px;color:#9793a4;font-size:9px}@media(max-width:1000px){.studio-grid{grid-template-columns:1fr}.preview-panel{position:static}.preview-stage{height:370px}}@media(max-width:520px){.color-row{grid-template-columns:repeat(2,1fr)}.preview-stage{height:330px}.form-two{grid-template-columns:1fr}}
 </style>

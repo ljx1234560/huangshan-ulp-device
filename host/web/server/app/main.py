@@ -7,6 +7,7 @@ from .config import get_settings
 from .database import Base, SessionLocal, engine
 from .routers import activity, admin, ai, auth, devices, pets
 from .services.seed import seed_demo_data
+from .services.image_jobs import recover_stale_image_jobs
 
 
 @asynccontextmanager
@@ -17,6 +18,7 @@ async def lifespan(_: FastAPI):
     if settings.seed_demo:
         with SessionLocal() as db:
             seed_demo_data(db)
+    recover_stale_image_jobs(settings)
     yield
 
 
@@ -36,7 +38,8 @@ def health():
     return {
         "status": "ok",
         "database": "sqlite" if settings.database_url.startswith("sqlite") else "postgresql",
-        "aiProvider": settings.ai_provider,
+        "textAiProvider": settings.text_ai_provider,
+        "imageAiProvider": settings.image_ai_provider,
         "demoSeed": settings.seed_demo,
     }
 

@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 
 def to_camel(value: str) -> str:
@@ -110,6 +110,20 @@ class PetGenerationIn(CamelModel):
     personality: Literal["energetic", "gentle", "curious"]
     name: str = Field(min_length=1, max_length=12)
     description: str = Field(default="", max_length=100)
+
+    @field_validator("color", "name", "description", mode="before")
+    @classmethod
+    def validate_safe_text(cls, value):
+        if not isinstance(value, str):
+            return value
+        normalized = " ".join(value.strip().split())
+        lowered = normalized.casefold()
+        blocked = ("http://", "https://", "<script", "迪士尼", "米奇", "皮卡丘", "pokemon", "marvel")
+        if any(token in lowered for token in blocked):
+            raise ValueError("请使用原创描述，不要包含网址、脚本或受保护的知名角色/IP")
+        if any(ord(char) < 32 for char in normalized):
+            raise ValueError("文本不能包含控制字符")
+        return normalized
 
 
 class FavoriteAssetIn(CamelModel):

@@ -63,7 +63,34 @@ export interface CoachingAdvice {
   content: string
   evidence: string[]
   category: 'today' | 'plan' | 'goal' | 'trend' | 'sedentary' | 'encouragement'
-  source: 'mock' | 'deepseek' | 'mimo' | 'local_fallback'
+  source: CoachingSource
+}
+
+export type CoachingSource = 'mock' | 'deepseek' | 'existing_velapet' | 'rules' | 'local_fallback'
+
+export interface CoachingInsight {
+  window_days: number
+  days_with_data: number
+  today_steps: number
+  today_active_minutes: number
+  current_goal: number
+  average_steps: number
+  average_active_minutes: number
+  completed_days: number
+  trend_percent: number
+  safe_goal_min: number
+  safe_goal_max: number
+  sufficient_data: boolean
+}
+
+export interface CoachingGeneration {
+  id: string
+  generatedAt: string
+  source: CoachingSource
+  model: string
+  dataSufficient: boolean
+  insight: CoachingInsight
+  advice: CoachingAdvice[]
 }
 
 export type PetSpecies = 'fox' | 'cat' | 'rabbit'
@@ -81,7 +108,7 @@ export interface PetGenerationInput {
 
 export interface PetGenerationJob {
   id: string
-  status: 'queued' | 'processing' | 'succeeded' | 'failed'
+  status: 'queued' | 'running' | 'processing' | 'succeeded' | 'failed'
   progress: number
   createdAt: string
   imageUrl?: string
@@ -90,6 +117,12 @@ export interface PetGenerationJob {
   error?: string
   input: PetGenerationInput
   source: 'mock_asset' | 'ai_generated'
+  provider?: 'mock' | 'openai' | 'doubao' | string
+  model?: string
+  attemptCount?: number
+  durationMs?: number
+  totalTokens?: number
+  favorite?: boolean
 }
 
 export interface PetAsset {
@@ -101,6 +134,9 @@ export interface PetAsset {
   favorite: boolean
   createdAt: string
   source: 'mock_asset' | 'ai_generated'
+  model?: string
+  width?: number
+  height?: number
 }
 
 export interface PetTask {
@@ -203,7 +239,12 @@ export interface AiServiceMetric {
   imageCalls: number
   successRate: number
   failedJobs: number
-  cost: number
+  cost: number | null
+  imageSucceeded?: number
+  imageFailed?: number
+  imageAverageDurationMs?: number
+  imageTokens?: number
+  imageModels?: Record<string, number>
 }
 
 export interface RetentionPoint {
