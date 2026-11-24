@@ -138,8 +138,10 @@ def seed_demo_data(db: Session):
         progress=100,
         input_json={"species": "fox", "color": "lavender", "style": "celestial", "personality": "energetic", "name": "露米", "description": "Demo 内置示例"},
         provider="mock",
+        model="mock-image-v1",
         source="mock_asset",
         is_demo=True,
+        created_at=now - timedelta(days=1),
         completed_at=now - timedelta(days=1),
     )
     db.add(job)
@@ -149,6 +151,7 @@ def seed_demo_data(db: Session):
         generation_job_id=job.id,
         image_url="/pets/lumi.png",
         name="露米",
+        model="mock-image-v1",
         favorite=True,
         source="mock_asset",
         is_demo=True,

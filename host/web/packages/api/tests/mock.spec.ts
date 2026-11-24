@@ -39,4 +39,15 @@ describe('mock API contracts', () => {
     expect(created.status).toBe('pending')
     expect(history.some((item) => item.id === created.id)).toBe(true)
   })
+
+  it('generates a structured coaching record and exposes its history', async () => {
+    const generated = await mockApi.generateCoaching()
+    const latest = await mockApi.latestCoaching()
+    const history = await mockApi.coachingHistory()
+    expect(generated.source).toBe('mock')
+    expect(generated.dataSufficient).toBe(true)
+    expect(generated.advice.length).toBeGreaterThanOrEqual(4)
+    expect(latest[0]?.id).toBe(generated.advice[0]?.id)
+    expect(history.some((item) => item.id === generated.id)).toBe(true)
+  })
 })

@@ -988,3 +988,25 @@ Confirm the user's apparent phone connection to the official BLE Peripheral cont
 - Design and handoff now state that real-device motion functionality does not exist yet and list the exact prerequisites.
 - Next gate: hardware line enables the sensor framework and I²C3, adds bounded motion diagnostics, and collects labeled traces for FE-2; watch side then integrates counters and reminders.
 
+## 2026-11-24 - VelaPet Web AI 集成
+
+### 目标与范围
+- 将已本地验收的 `host/web/` AI 阶段增量合入独立功能分支，包括 DeepSeek 运动建议、豆包 Seedream 图片生成、持久化任务 Worker、前端展示、迁移、配置模板和测试。
+- 不修改 SF32LB52 产品固件、BLE 协议、宠物 EXP/等级规则或用户认证机制；不执行真实付费 AI 请求。
+
+### 决策与修改
+- 复用现有 `host/web/`，按内容差异同步 45 个已审查文件；保留目标结构，不使用镜像删除或覆盖仓库其他模块。
+- 文本与图片 Provider 保持独立，真实失败不回退 Mock；图片任务继续使用数据库持久化队列、独立 Worker 和私有本地存储。
+- 补齐安全的 `.env.example`、Docker Compose 变量透传和离线配置测试；真实 `.env`、密钥、数据库、私有图片、依赖和构建产物均不纳入提交。
+
+### 验证
+- `python -m pytest tests -q`（在 `host/web/server`）：86 项通过。
+- `pnpm test`：共享包与 API 共 7 项通过；用户端和管理端无独立测试文件并按配置正常退出。
+- `pnpm typecheck`：共享包、API、用户端、管理端全部通过。
+- `pnpm build`：用户端和管理端生产构建通过；仅有既存的大 chunk 警告。
+- Alembic 使用一次性 SQLite 空库执行 `upgrade head`，到达 `20261124_0005 (head)`。
+
+### 最终状态与风险
+- 软件离线验证完成；本次未调用 DeepSeek 或豆包付费接口，也未新增或提交任何真实密钥。
+- PostgreSQL/Docker 运行验收和新的线上 AI 冒烟测试未在本次提交流程中执行；现有真实联调结论不由本次离线验证替代。
+

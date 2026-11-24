@@ -2,16 +2,17 @@ import axios, { type InternalAxiosRequestConfig } from 'axios'
 import type { ApiMode } from '@velapet/shared'
 
 export const apiMode: ApiMode = import.meta.env.VITE_API_MODE === 'real' ? 'real' : 'mock'
+export const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 export const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+  baseURL: apiBaseUrl,
   timeout: 12_000,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
 })
 
 const refreshHttp = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+  baseURL: apiBaseUrl,
   timeout: 12_000,
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },

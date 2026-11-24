@@ -5,6 +5,7 @@ import type {
   AuthSession,
   BridgeStatus,
   CoachingAdvice,
+  CoachingGeneration,
   DateRangeQuery,
   DataRange,
   DeviceRecord,
@@ -17,7 +18,7 @@ import type {
   UserProfile,
   WeeklySummary,
 } from '@velapet/shared'
-import { apiMode, http } from './client'
+import { apiBaseUrl, apiMode, http } from './client'
 import { mockApi } from './mock'
 
 async function realGet<T>(path: string): Promise<T> {
@@ -65,25 +66,38 @@ export const activityApi = {
 }
 
 export const aiApi = {
-  coaching: (): Promise<CoachingAdvice[]> =>
-    apiMode === 'mock' ? mockApi.coaching() : realGet('/api/v1/ai/coaching'),
+  generate: (): Promise<CoachingGeneration> =>
+    apiMode === 'mock'
+      ? mockApi.generateCoaching()
+      : http.post<CoachingGeneration>('/api/v1/ai/coaching').then((r) => r.data),
+  latest: (): Promise<CoachingAdvice[]> =>
+    apiMode === 'mock' ? mockApi.latestCoaching() : realGet('/api/v1/ai/coaching'),
+  history: (): Promise<CoachingGeneration[]> =>
+    apiMode === 'mock' ? mockApi.coachingHistory() : realGet('/api/v1/ai/coaching/history'),
+}
+
+function resolveProtectedImage<T extends { imageUrl?: string }>(item: T): T {
+  if (apiMode === 'real' && item.imageUrl?.startsWith('/api/')) {
+    return { ...item, imageUrl: new URL(item.imageUrl, apiBaseUrl).toString() }
+  }
+  return item
 }
 
 export const petApi = {
   current: (): Promise<PetSnapshot> =>
-    apiMode === 'mock' ? mockApi.pet() : realGet('/api/v1/pets/current'),
+    apiMode === 'mock' ? mockApi.pet() : realGet<PetSnapshot>('/api/v1/pets/current').then(resolveProtectedImage),
   createGenerationJob: (input: PetGenerationInput): Promise<PetGenerationJob> =>
     apiMode === 'mock'
       ? mockApi.createPetJob(input)
       : http.post<PetGenerationJob>('/api/v1/pets/generation-jobs', input).then((r) => r.data),
   generationJob: (id: string): Promise<PetGenerationJob> =>
-    apiMode === 'mock' ? mockApi.petJob(id) : realGet('/api/v1/pets/generation-jobs/' + id),
+    apiMode === 'mock' ? mockApi.petJob(id) : realGet<PetGenerationJob>('/api/v1/pets/generation-jobs/' + id).then(resolveProtectedImage),
   generationHistory: (): Promise<PetGenerationJob[]> =>
-    apiMode === 'mock' ? mockApi.petJobs() : realGet('/api/v1/pets/generation-jobs'),
+    apiMode === 'mock' ? mockApi.petJobs() : realGet<PetGenerationJob[]>('/api/v1/pets/generation-jobs').then((items) => items.map(resolveProtectedImage)),
   favoriteAsset: (assetId: string, favorite = true): Promise<PetAsset> =>
     apiMode === 'mock'
       ? mockApi.favoriteAsset(assetId, favorite)
-      : http.post<PetAsset>('/api/v1/pets/assets/' + assetId + '/favorite', { favorite }).then((r) => r.data),
+      : http.post<PetAsset>('/api/v1/pets/assets/' + assetId + '/favorite', { favorite }).then((r) => resolveProtectedImage(r.data)),
   setCurrentAsset: (assetId: string): Promise<{ ok: true }> =>
     apiMode === 'mock'
       ? mockApi.setCurrentAsset(assetId)
@@ -130,8 +144,10 @@ export const adminApi = {
     apiMode === 'mock' ? mockApi.users() : realGet('/api/v1/admin/users'),
   devices: (): Promise<DeviceRecord[]> =>
     apiMode === 'mock' ? mockApi.devices() : realGet('/api/v1/admin/devices'),
-  aiMetrics: (): Promise<AiServiceMetric[]> =>
-    apiMode === 'mock' ? mockApi.aiMetrics() : realGet('/api/v1/admin/metrics/ai-services'),
+  aiMetrics: (dates: DateRangeQuery = {}): Promise<AiServiceMetric[]> =>
+    apiMode === 'mock'
+      ? mockApi.aiMetrics()
+      : realGet('/api/v1/admin/metrics/ai-services?' + buildDateQuery('month', dates)),
   retention: (): Promise<RetentionPoint[]> =>
     apiMode === 'mock' ? mockApi.retention() : realGet('/api/v1/admin/metrics/retention'),
 }
@@ -143,6 +159,7 @@ export type {
   AuthSession,
   BridgeStatus,
   CoachingAdvice,
+  CoachingGeneration,
   DeviceRecord,
   PetGenerationInput,
   PetGenerationJob,

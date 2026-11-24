@@ -3,7 +3,7 @@
 该程序把正式 VelaPet BLE 同步协议转换为现有 FastAPI 设备上传 API。它不会把设备名称或 MAC 当作所有权依据；用户必须先在 Web 完成设备绑定，桥接程序再用用户邮箱/密码换取短期、限定设备的 Bridge Token。
 
 ```powershell
-Set-Location 'E:\projects\huangshan-ulp-device\host\web'
+Set-Location 'E:\作业\velapet\web'
 py -3.12 -m venv tools\ble-bridge\.venv
 tools\ble-bridge\.venv\Scripts\python.exe -m pip install -e 'tools\ble-bridge[dev]'
 

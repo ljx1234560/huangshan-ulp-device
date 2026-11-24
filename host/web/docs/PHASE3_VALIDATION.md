@@ -39,7 +39,7 @@ Alembic fresh upgrade    20261119_0003 (head)
 
 ## 硬件代码审查结论
 
-阶段 3 开发时的本机工作区没有硬件仓库，因此当时只读分析公开代码。现已把 Web 平台集成到产品仓库 `host/web/`，但并未因此获得新的真机证据：真实产品传感器适配、正式 Sync GATT、离线 Flash 持久化和物理配对确认仍未完成真机证明。公开历史记录提到工厂镜像可读 LSM6 数据，但静止计步为 0 不能证明真实步行计步正确。
+本机 `E:\作业\velapet` 没有硬件工作树。只读分析的公开仓库显示：运动模型有主机测试；诊断 BLE 只有四字节读写；真实产品传感器适配、正式 Sync GATT、离线 Flash 持久化和物理配对确认均未完成真机证明。公开历史记录提到工厂镜像可读 LSM6 数据，但静止计步为 0 不能证明真实步行计步正确。
 
 因此当前状态分类为：
 
@@ -55,7 +55,7 @@ Alembic fresh upgrade    20261119_0003 (head)
 具备 Docker Desktop 后执行：
 
 ```powershell
-Set-Location 'E:\projects\huangshan-ulp-device\host\web'
+Set-Location 'E:\作业\velapet\web'
 docker compose up --build -d
 docker compose ps
 docker compose exec server python -m alembic current

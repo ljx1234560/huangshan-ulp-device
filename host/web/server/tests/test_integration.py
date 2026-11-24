@@ -1,6 +1,7 @@
 from datetime import date, datetime, timedelta, timezone
 
 from conftest import SyncASGIClient, csrf_headers, login
+from app.config import Settings, get_settings
 
 
 def activity_payload(upload_id: str = "upload-1", record_id: str = "record-1", device_cursor: int = 0):
@@ -47,6 +48,18 @@ def test_admin_rbac_blocks_normal_users(client: SyncASGIClient):
     assert response.json()["dataSource"] == "demo"
     assert "activeDevices" in response.json()
     assert "firmwareVersions" in response.json()
+
+
+def test_admin_ai_metrics_use_persisted_image_job_fields_and_date_range(client: SyncASGIClient):
+    login(client, "admin@velapet.cn", "VelaPetAdmin123!")
+    today = date.today().isoformat()
+    response = client.get(f"/api/v1/admin/metrics/ai-services?start_date={today}&end_date={today}")
+    assert response.status_code == 200
+    row = response.json()[0]
+    assert {"imageCalls", "imageSucceeded", "imageFailed", "imageAverageDurationMs", "imageTokens", "imageModels", "cost"} <= row.keys()
+    assert row["cost"] is None
+    too_wide = client.get("/api/v1/admin/metrics/ai-services?start_date=2025-01-01&end_date=2026-11-24")
+    assert too_wide.status_code == 422
 
 
 def test_user_activity_isolation_and_date_filter(client: SyncASGIClient):
@@ -310,7 +323,82 @@ def test_pet_job_asset_and_instance_ids_are_distinct_and_persist(client: SyncASG
     assert result["status"] == "succeeded"
     assert len({result["id"], result["assetId"], result["petId"]}) == 3
     asset_id = result["assetId"]
-    assert client.post(f"/api/v1/pets/assets/{asset_id}/favorite", json={"favorite": True}, headers=csrf_headers(client)).status_code == 200
+    image = client.get(result["imageUrl"])
+    assert image.status_code == 200
+    assert image.headers["content-type"].startswith("image/png")
+    favorite = client.post(f"/api/v1/pets/assets/{asset_id}/favorite", json={"favorite": True}, headers=csrf_headers(client))
+    assert favorite.status_code == 200
+    assert favorite.json()["favorite"] is True
+    unfavorite = client.post(f"/api/v1/pets/assets/{asset_id}/favorite", json={"favorite": False}, headers=csrf_headers(client))
+    assert unfavorite.status_code == 200
+    assert unfavorite.json()["favorite"] is False
     assert client.post(f"/api/v1/pets/assets/{asset_id}/set-current", headers=csrf_headers(client)).status_code == 200
     assert client.get("/api/v1/pets/current").json()["currentAssetId"] == asset_id
     assert any(item["id"] == job_id for item in client.get("/api/v1/pets/generation-jobs").json())
+
+    other = SyncASGIClient(client.app)
+    login(other, "second-demo@velapet.cn")
+    assert other.get(f"/api/v1/pets/generation-jobs/{job_id}").status_code == 404
+    assert other.get(result["imageUrl"]).status_code == 404
+    assert other.post(f"/api/v1/pets/assets/{asset_id}/favorite", json={"favorite": True}, headers=csrf_headers(other)).status_code == 404
+    assert other.post(f"/api/v1/pets/assets/{asset_id}/set-current", headers=csrf_headers(other)).status_code == 404
+
+
+def test_pet_generation_daily_quota_is_enforced(client: SyncASGIClient):
+    limited = Settings(_env_file=None, image_ai_provider="mock", image_daily_limit=1)
+    client.app.dependency_overrides[get_settings] = lambda: limited
+    try:
+        login(client, "second-demo@velapet.cn")
+        body = {
+            "species": "rabbit", "color": "mint", "style": "forest",
+            "personality": "gentle", "name": "芽芽", "description": "原创森林伙伴",
+        }
+        first = client.post("/api/v1/pets/generation-jobs", json=body, headers=csrf_headers(client))
+        assert first.status_code == 202
+        body["name"] = "月月"
+        second = client.post("/api/v1/pets/generation-jobs", json=body, headers=csrf_headers(client))
+        assert second.status_code == 429
+        assert "额度" in second.json()["detail"]
+    finally:
+        client.app.dependency_overrides.pop(get_settings, None)
+
+
+def test_coaching_generation_persists_and_matches_api_contract(client: SyncASGIClient):
+    login(client, "demo@velapet.cn")
+    first = client.post("/api/v1/ai/coaching", headers=csrf_headers(client))
+    assert first.status_code == 200
+    body = first.json()
+    assert body["source"] == "mock"
+    assert body["model"] == "mock-text-v1"
+    assert body["dataSufficient"] is True
+    assert body["insight"]["days_with_data"] == 7
+    assert len(body["advice"]) == 5
+    assert {item["category"] for item in body["advice"]} == {
+        "trend", "today", "goal", "plan", "encouragement",
+    }
+    latest = client.get("/api/v1/ai/coaching")
+    assert latest.status_code == 200
+    assert latest.json() == body["advice"]
+
+    second = client.post("/api/v1/ai/coaching", headers=csrf_headers(client))
+    assert second.status_code == 200
+    history = client.get("/api/v1/ai/coaching/history").json()
+    assert len(history) == 2
+    assert history[0]["id"] == second.json()["id"]
+
+
+def test_coaching_history_is_user_isolated_and_insufficient_data_is_explicit(client: SyncASGIClient):
+    login(client, "demo@velapet.cn")
+    assert client.post("/api/v1/ai/coaching", headers=csrf_headers(client)).status_code == 200
+
+    other = SyncASGIClient(client.app)
+    login(other, "second-demo@velapet.cn")
+    assert other.get("/api/v1/ai/coaching/history").json() == []
+    generated = other.post("/api/v1/ai/coaching", headers=csrf_headers(other))
+    assert generated.status_code == 200
+    result = generated.json()
+    assert result["dataSufficient"] is False
+    assert result["insight"]["days_with_data"] == 0
+    assert "不足" in result["advice"][0]["content"]
+    assert len(other.get("/api/v1/ai/coaching/history").json()) == 1
+    assert len(client.get("/api/v1/ai/coaching/history").json()) == 1

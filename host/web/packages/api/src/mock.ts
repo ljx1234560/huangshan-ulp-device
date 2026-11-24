@@ -5,6 +5,7 @@ import type {
   AiServiceMetric,
   AuthSession,
   CoachingAdvice,
+  CoachingGeneration,
   DeviceRecord,
   PetGenerationInput,
   PetGenerationJob,
@@ -47,6 +48,12 @@ const syncStorageKey = 'velapet_mock_sync_logs'
 const jobStorageKey = 'velapet_mock_pet_jobs'
 const assetStorageKey = 'velapet_mock_pet_assets'
 const currentAssetStorageKey = 'velapet_mock_current_asset'
+const coachingStorageKey = 'velapet_mock_coaching_history'
+const mockCoachingHistory = readStored<CoachingGeneration[]>(coachingStorageKey, [])
+
+function persistCoachingHistory() {
+  writeStored(coachingStorageKey, mockCoachingHistory.slice(0, 30))
+}
 
 function daysAgo(days: number): string {
   const date = new Date()
@@ -306,6 +313,44 @@ export const mockApi = {
     ]
   },
 
+  async generateCoaching(): Promise<CoachingGeneration> {
+    const advice = await mockApi.coaching()
+    const generation: CoachingGeneration = {
+      id: 'coaching_' + Date.now(),
+      generatedAt: new Date().toISOString(),
+      source: 'mock',
+      model: 'mock-text-v1',
+      dataSufficient: true,
+      insight: {
+        window_days: 30,
+        days_with_data: 7,
+        today_steps: 8362,
+        today_active_minutes: 45,
+        current_goal: 10000,
+        average_steps: 9128,
+        average_active_minutes: 47,
+        completed_days: 4,
+        trend_percent: 6,
+        safe_goal_min: 8000,
+        safe_goal_max: 10500,
+        sufficient_data: true,
+      },
+      advice,
+    }
+    mockCoachingHistory.unshift(generation)
+    persistCoachingHistory()
+    return generation
+  },
+
+  async latestCoaching(): Promise<CoachingAdvice[]> {
+    return mockCoachingHistory[0]?.advice || mockApi.coaching()
+  },
+
+  async coachingHistory(): Promise<CoachingGeneration[]> {
+    await wait(180)
+    return mockCoachingHistory.map((item) => ({ ...item, advice: item.advice.map((advice) => ({ ...advice })) }))
+  },
+
   async createPetJob(input: PetGenerationInput): Promise<PetGenerationJob> {
     await wait(480)
     const id = 'job_' + Date.now()
@@ -316,6 +361,7 @@ export const mockApi = {
       createdAt: new Date().toISOString(),
       input,
       source: 'mock_asset',
+      provider: 'mock',
     }
     jobs.set(id, job)
     persistJobs()
@@ -348,7 +394,7 @@ export const mockApi = {
         writeStored(assetStorageKey, assets)
       }
     } else {
-      job.status = 'processing'
+      job.status = 'running'
       job.progress = Math.min(88, 20 + Math.round(elapsed / 30))
     }
     persistJobs()
@@ -366,7 +412,10 @@ export const mockApi = {
     const asset = assets.find((item) => item.id === assetId)
     if (!asset) throw new Error('萌宠资源不存在')
     asset.favorite = favorite
+    const job = [...jobs.values()].find((item) => item.assetId === assetId)
+    if (job) job.favorite = favorite
     writeStored(assetStorageKey, assets)
+    persistJobs()
     return { ...asset }
   },
 
@@ -468,7 +517,12 @@ export const mockApi = {
       imageCalls: 220 + ((index * 47) % 260),
       successRate: 0.945 + ((index % 5) * 0.009),
       failedJobs: 8 + ((index * 3) % 16),
-      cost: 186 + ((index * 29) % 130),
+      imageSucceeded: 200 + ((index * 41) % 220),
+      imageFailed: 8 + ((index * 3) % 16),
+      imageAverageDurationMs: 4200 + index * 90,
+      imageTokens: 0,
+      imageModels: { 'mock-image-v1': 220 + ((index * 47) % 260) },
+      cost: null,
     }))
   },
 

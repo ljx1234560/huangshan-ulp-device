@@ -9,6 +9,7 @@ from ..database import get_db
 from ..deps import require_admin
 from ..models import (
     ActivityDaily,
+    CoachingGeneration,
     Device,
     DeviceBinding,
     PetGenerationJob,
@@ -210,27 +211,44 @@ def list_devices(admin: User = Depends(require_admin), db: Session = Depends(get
 
 
 @router.get("/metrics/ai-services")
-def ai_metrics(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    end = date.today()
-    start = end - timedelta(days=13)
+def ai_metrics(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    start, end = resolve_dates(start_date, end_date)
     jobs = list(db.scalars(select(PetGenerationJob).where(
         PetGenerationJob.created_at >= datetime.combine(start, time.min, tzinfo=timezone.utc)
     )))
-    events = list(db.scalars(select(UserEvent).where(
-        UserEvent.event_type == "ai_coaching", UserEvent.event_date >= start
+    text_generations = list(db.scalars(select(CoachingGeneration).where(
+        CoachingGeneration.created_at >= datetime.combine(start, time.min, tzinfo=timezone.utc)
     )))
     rows = []
     cursor = start
     while cursor <= end:
         day_jobs = [job for job in jobs if job.created_at.date() == cursor]
+        day_text = [item for item in text_generations if item.created_at.date() == cursor]
         successful = sum(1 for job in day_jobs if job.status == "succeeded")
+        failed = sum(1 for job in day_jobs if job.status == "failed")
+        completed = [job for job in day_jobs if job.status == "succeeded"]
+        models: dict[str, int] = defaultdict(int)
+        for job in day_jobs:
+            models[job.model or job.provider] += 1
+        known_costs = [job.cost_microusd for job in day_jobs if job.cost_microusd is not None]
+        total_calls = len(day_jobs) + len(day_text)
         rows.append({
             "date": cursor.isoformat(),
-            "textCalls": sum(1 for event in events if event.event_date == cursor),
+            "textCalls": len(day_text),
             "imageCalls": len(day_jobs),
-            "successRate": successful / len(day_jobs) if day_jobs else 0,
-            "failedJobs": sum(1 for job in day_jobs if job.status == "failed"),
-            "cost": 0,
+            "successRate": (successful + len(day_text)) / total_calls if total_calls else 0,
+            "failedJobs": failed,
+            "imageSucceeded": successful,
+            "imageFailed": failed,
+            "imageAverageDurationMs": round(sum(job.duration_ms for job in completed) / len(completed)) if completed else 0,
+            "imageTokens": sum(job.total_tokens for job in day_jobs),
+            "imageModels": dict(models),
+            "cost": sum(known_costs) / 1_000_000 if known_costs else None,
         })
         cursor += timedelta(days=1)
     audit(db, admin, "view_ai_metrics")

@@ -2,7 +2,7 @@
 
 ## 当前证据
 
-本目录位于产品仓库的 `host/web/` 边界。阶段 3 只读分析公开代码时没有修改固件；本次仓库集成同样没有覆盖 `src/`、`project/` 或硬件文件。当前代码中：
+本机 `E:\作业\velapet` 下没有硬件仓库。分析使用的是 GitHub 公开代码的只读临时副本，没有覆盖原项目。公开代码中：
 
 - `velapet_motion.h/.c` 有平台无关运动模型与主机测试，但尚无真实产品传感器适配层。
 - 工厂镜像曾读取 LSM6 加速度/陀螺仪/计步寄存器；静止时读到 0，未证明步行计步语义。
@@ -14,7 +14,7 @@
 
 ## 正确工作目录与环境确认
 
-真实修改前先从产品仓库根目录检查 `git status`，确认板卡 `sf32lb52-lchspi-ulp`、SiFli SDK 2.4.6 与 `sdk.lock` 锁定提交，再使用仓库自己的 `scripts/build.ps1` 构建。`host/web/firmware/sf32lb52-sync/` 是候选参考实现，必须经接口评审后有选择地迁入 `src/services/`，不能整目录覆盖。
+真实修改前先取得项目维护者确认的仓库（公开仓库说明指向 `E:\projects\huangshan-ulp-device`），检查 `git status`，确认板卡 `sf32lb52-lchspi-ulp`、SiFli SDK 2.4.6 与锁定提交，再从硬件仓库自己的 `scripts/build.ps1` 构建。不要把本目录候选文件直接覆盖到未知工作树。
 
 ## 集成顺序
 
