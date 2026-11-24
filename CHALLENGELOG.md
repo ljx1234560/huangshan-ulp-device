@@ -959,3 +959,32 @@ Confirm the user's apparent phone connection to the official BLE Peripheral cont
 - Cross-checked the inventory against the board vendor's hardware and sensor documentation, pinned SDK source, current build configuration, prior hardware log, and live `list_device` output. No product source or Flash was changed; the board was left running the same VelaPet image after restart.
 - No movement trial or new live sensor sample was collected. Next gate: enable a bounded sensor diagnostic build, review the image and recovery path, then collect labeled multi-condition logs on the device.
 
+## 2026-11-24 - Motion design revision after sensor inventory
+
+### Objective and scope
+
+- Incorporate the sensor inventory findings into the motion-model design and handoff, and correct claims that the current code does not support.
+- Documentation only; no firmware source, board, serial, or Flash operation.
+
+### Decisions and changes
+
+- `docs/motion-model.md` v1.1: status now states the core has no real-device input; v1 scope is limited to LSM6DS3TR-C acceleration plus the chip step counter. Gyro, MMC5603NJ, and LTR-303 are not used in v1, and light-based wear detection remains disabled.
+- Removed the unsupported "acceleration fallback" claim. Whether acceleration step detection is implemented is deferred to the FE-2 error result: chip steps remain primary; >5% error triggers a separate proposal.
+- Added the SDK wrapper risks (MMC Z-axis out-of-bounds read, LTR raw CH1 mislabeled as lux, incomplete LSM6 error checking, RTC-second sensor timestamps) and required the adapter to provide monotonic milliseconds, valid/invalid sample flags, and read-error counts.
+- Added the sensor-enablement gate: `RT_USING_SENSOR` and `BSP_USING_I2C3` must be enabled and evidenced before any real-device motion claim.
+- Documented slow-consumer behavior: minute-based tasks must use monotonic counter deltas instead of relying on event bits, which merge between reads.
+- Added the no-valid-sample boundary: pause motion reminders after 60 seconds without valid samples, mark the sensor unavailable, and do not backfill reminders on recovery.
+- Updated `docs/motion-handoff.md` FE-1/FE-2/FE-3/FE-5 acceptance criteria and the risk table; updated `docs/motion-decisions-2026-11-24.md` with the follow-up section and new action A-6.
+- No code or interface signature changed; `velapet_motion_*` remains the host-verified algorithm core.
+
+### Validation
+
+- Re-ran the motion unit test suite previously recorded: core 5, service 6, motion 7 pass with synthetic input. No new test was required for a documentation-only revision.
+- `git diff --check` passed.
+- Not run: firmware build, sensor enablement, serial command, board or Flash access, real trace replay.
+
+### Final state and risks
+
+- Design and handoff now state that real-device motion functionality does not exist yet and list the exact prerequisites.
+- Next gate: hardware line enables the sensor framework and I²C3, adds bounded motion diagnostics, and collects labeled traces for FE-2; watch side then integrates counters and reminders.
+
