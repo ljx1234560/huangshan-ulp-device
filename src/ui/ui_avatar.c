@@ -4,8 +4,9 @@
 #include <string.h>
 
 /*
- * 形象页：当前用几何占位形象；默认三款（星云猫/奶油犬/薄荷兔）为云端资源
- * （handoff 第 6 节），资源事件接口（外观资源事件）评审接入后替换为图片。
+ * 形象页：舞台显示当前皮肤的整帧 JPG 场景图（VELAPET_UI_SKIN_IMAGES=1 时），
+ * 未启用时退回几何占位。默认三款（星云猫/奶油犬/薄荷兔）为云端资源
+ * （handoff 第 6 节），资源事件接口（外观资源事件）评审接入后再接。
  */
 
 static lv_obj_t *s_name_label;
@@ -56,14 +57,32 @@ void ui_avatar_create(void)
     g_ui_root = ui_create_page();
     ui_create_title(g_ui_root, "形象", 1);
 
-    /* 舞台 */
+    /* 舞台：当前皮肤整帧场景图（缩到 170x136）；未启用图片时几何替身 */
     lv_obj_t *stage_card = ui_create_card(g_ui_root, LV_PCT(100), 196);
     lv_obj_t *stage = lv_obj_create(stage_card);
     lv_obj_remove_style_all(stage);
-    lv_obj_set_size(stage, 170, 130);
+    lv_obj_set_size(stage, 170, 136);
     lv_obj_clear_flag(stage, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_t *avatar = ui_create_pet_avatar(stage, 170, 130);
-    lv_obj_center(avatar);
+    {
+        int skin_index = (snap != NULL)
+                             ? ui_skin_image_index_of(snap->current_skin) : -1;
+        const lv_img_dsc_t *full =
+            (skin_index >= 0) ? ui_skin_image_full((uint8_t)skin_index) : NULL;
+        lv_obj_t *avatar;
+
+        if (full != NULL)
+        {
+            avatar = lv_img_create(stage);
+            lv_img_set_src(avatar, full);
+            /* 220x176 -> 170x136（256 为 LVGL zoom 基准） */
+            lv_img_set_zoom(avatar, 198);
+        }
+        else
+        {
+            avatar = ui_create_pet_avatar(stage, 170, 130);
+        }
+        lv_obj_center(avatar);
+    }
     lv_obj_align(stage, LV_ALIGN_TOP_MID, 0, 0);
 
     s_name_label = lv_label_create(stage_card);

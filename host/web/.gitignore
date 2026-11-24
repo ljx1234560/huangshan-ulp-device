@@ -1,0 +1,32 @@
+node_modules/
+dist/
+coverage/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Python environments, caches and local databases
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.coverage
+*.py[cod]
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs, editor and operating-system files
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/

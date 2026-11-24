@@ -77,14 +77,17 @@ static void checkin_cb(lv_event_t *e)
 {
     int days;
 
-    (void)e;
     ui_note_event("TASK_CHECKIN");
     days = velapet_service_checkin();
     if (days > 0)
     {
         char buf[48];
+        lv_obj_t *card = lv_obj_get_parent(lv_event_get_target(e));
+
         snprintf(buf, sizeof(buf), "签到成功，已连签 %d 天", days);
         ui_show_toast(buf);
+        /* A5：签到卡片弹跳欢呼（动画对象随卡片销毁自动清理）。 */
+        ui_anim_cheer(card);
     }
     else if (days == 0)
     {

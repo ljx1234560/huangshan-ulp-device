@@ -8,8 +8,8 @@ $outputDir = 'test-results\unit'
 
 # 平台无关业务代码在主机上即可验证，无需烧录开发板。
 # 注意：全部使用相对路径，gcc 在 Windows 下处理含中文的绝对路径会失败。
-$testNames = @('velapet_core_test', 'velapet_service_test')
-$sources = @('src/app/velapet_core.c', 'src/app/velapet_service.c')
+$testNames = @('velapet_core_test', 'velapet_service_test', 'velapet_motion_test')
+$sources = @('src/app/velapet_core.c', 'src/app/velapet_service.c', 'src/app/velapet_motion.c')
 
 New-Item -ItemType Directory -Path (Join-Path $repoRoot $outputDir) -Force | Out-Null
 

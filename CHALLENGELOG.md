@@ -742,6 +742,177 @@ Confirm the user's apparent phone connection to the official BLE Peripheral cont
 - The main collaboration risk is still the absence of an initial Git baseline and shared remote. The project lead should review `AGENTS.md`, decide the remote host and access model, then create the first commit before assigning parallel feature branches.
 - Final documentation consistency check passed: all 34 referenced local paths exist, Markdown code fences are balanced, no trailing whitespace was found, and no embedded secret pattern was detected in `AGENTS.md`.
 
+## 2026-11-17 - Firmware build and LVGL keyboard gate
+
+### Objective and scope
+
+- Run the product firmware build for the five-page UI handoff and check the `LV_USE_KEYBOARD` switch.
+- This was a host-side build check only; no board, serial port, or Flash operation was performed.
+
+### Findings and validation
+
+- In `E:\projects\huangshan-ulp-device`, `.\scripts\doctor.ps1` failed while activating the pinned SiFli-SDK environment. The installed `arm-none-eabi-gcc` 14.2.1 could not start due to Windows error 623 (invalid system DLL relocation); SDK export then reported no usable compiler installation.
+- `.\scripts\build.ps1` failed at the same environment activation step, before SCons and before any source compilation. No new firmware image was produced.
+- Directly invoking the installed `arm-none-eabi-gcc.exe --version` reproduced the same Windows error 623. No alternate compiler version is present under the configured tools directory.
+- The existing generated `project/build_sf32lb52-lchspi-ulp_hcpu/.config` contains `CONFIG_LV_USE_KEYBOARD=y` and `CONFIG_LV_USE_TEXTAREA=y`; its `rtconfig.h` contains `#define LV_USE_KEYBOARD 1` and `#define LV_USE_TEXTAREA 1`. These files date from November 3, before the current UI source files dated November 10, so they do not prove that the current five-page UI compiles.
+
+### Final state and next action
+
+- The board and Flash were untouched. The build gate remains blocked by the local compiler launch failure, not by a demonstrated UI compile error.
+- Restore a working pinned GCC toolchain or resolve the Windows loader error, then rerun `.\scripts\doctor.ps1` and `.\scripts\build.ps1`. Only after a successful build should the current image be considered for board validation; display, touch, keyboard interaction, and animation require separate on-device checks.
+
+## 2026-11-17 - Follow-up: font linkage fixed and firmware built
+
+### Decision and change
+
+- A direct GCC launch outside the restricted execution environment succeeded. The earlier Windows error 623 was specific to that environment, not a damaged installed toolchain.
+- The unrestricted firmware build reached linking and failed on unresolved `ui_font_cn_16` and `ui_font_cn_20` symbols. Both font sources already existed under `src/ui/fonts/`, but `src/SConscript` omitted that directory.
+- Added `Glob('ui/fonts/*.c')` to `src/SConscript`; no font data or UI behavior was changed.
+
+### Validation and final state
+
+- Reran `.\scripts\build.ps1` for `sf32lb52-lchspi-ulp`; it completed with exit code 0 and generated a new `project/build_sf32lb52-lchspi-ulp_hcpu/main.bin` (2,075,824 bytes, November 17 at 16:17 local time). The existing SDK and linker warnings were non-fatal.
+- The newly generated `.config` has `CONFIG_LV_USE_KEYBOARD=y` and `CONFIG_LV_USE_TEXTAREA=y`; `rtconfig.h` defines both as `1`. Both Chinese font objects were compiled and linked.
+- `git diff --check` passed. No flash, serial test, or physical display/touch/keyboard/animation validation was performed. The new image is ready for the team's reviewed board validation, which remains the next gate before discussing sensor and motion-model behavior on device.
+
+## 2026-11-17 - Five-page UI board bring-up started
+
+### Scope and preflight
+
+- Confirmed the attached board as USB-SERIAL CH340 on COM8 (`VID_1A86&PID_7523`). Before flashing, `ui_status` from the old image returned `WAITING taps=0`, and the board produced its normal boot log.
+- Confirmed the new 2,075,824-byte `main.bin` fits the 8 MiB HCPU code region at `0x12020000`; the 16 MiB factory backup remains at `releases/factory-20261022-full.bin` with SHA-256 `9425D8C0FC25BB8190956D842DE0377B011FF1B5F38DD6239E242220DECAF2C5`.
+
+### Flash and observed result
+
+- Ran `.\scripts\flash.ps1 -Port COM8 -Confirm` and accepted its built-in confirmation. The bootloader at `0x12010000` was unchanged; the new `main.bin` was written to `0x12020000` and verified; the generated flash table was written to `0x12000000` and verified. The command exited 0.
+- The flashed `main.bin` SHA-256 is `61BBF031EAC249DC456B125FE2E3836027B46ACCF920B1072E15EE0D4FB2C14F`.
+- After flashing, `.\scripts\serial-command.ps1 -Port COM8 -Command 'ui_status' -ReadSeconds 15` returned `[ui] status=WAITING taps=0 last=NONE`. This proves the new shell command runs; no UI touch event has yet been observed.
+- Display appearance, five-page navigation, physical touch, keyboard entry, and animations still require human observation. No sensor or motion-model conclusion was drawn from this firmware bring-up.
+
+## 2026-11-17 - Reassign watch work and add Web management ownership
+
+### Decision and change
+
+- Reassigned the former member two business and local-state responsibilities, together with member three's UI responsibilities, to member three as one watch-side module.
+- Assigned member two the Web management module for synchronized watch information: personal usage trends and product content for users, plus aggregated usage statistics and analysis for management staff.
+- Updated `AGENTS.md` ownership, module boundaries, cross-module data contract, directory plan, capacity allocation, and branch naming. This is a responsibility change only; no Web feature or synchronization endpoint was implemented.
+
+### Validation and final state
+
+- Reviewed the responsibility table and related rules, and ran `git diff --check` for the documentation change. No firmware build or board test was needed for this documentation-only update.
+- Existing uncommitted firmware and board bring-up changes were preserved and excluded from this assignment update.
+
+## 2026-11-17 - Motion model core (platform-independent)
+
+### Objective and scope
+
+- Add the first slice of the VelaPet motion model: a pure C, OS-free activity state machine between the sensor adapter and `velapet_service`.
+- Out of scope: RT-Thread sensor adapter, diagnostics commands, task/reward integration, persistence, reminder UI, gyro gestures, and any board flashing.
+
+### Decisions and changes
+
+- Added `src/app/velapet_motion.h` and `src/app/velapet_motion.c`. Callers feed timestamped 25 Hz acceleration samples, 16-bit step-counter readings, and ambient-light raw counts. The model outputs activity state, wear state, daily step/active-minute/continuous-walk counters, sedentary duration, and event bits (`ACTIVE_MINUTE`, `WALK_MINUTE`, `SEDENTARY`, `INACTIVITY`).
+- The step counter is treated as the primary source. Wrapped deltas are accepted; deltas above 500 per read are discarded as counter reset or glitch, and the baseline is re-established. The model exposes pending step deltas for batched `velapet_service_record_steps()` calls.
+- Sedentary timing resets on walking or when 60-second steps reach the configured threshold. Removing the watch (still plus uncalibrated light threshold, disabled by default) pauses and clears the sedentary timer; light-based wear detection stays off until the raw threshold is measured.
+- No existing public interface changed. The file is picked up by the existing `src/SConscript` glob for `src/app/*.c`.
+- Added `tests/unit/velapet_motion_test.c` and registered it, with `src/app/velapet_motion.c`, in `scripts/test-unit.ps1`.
+
+### Validation
+
+- Ran `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-unit.ps1`; native GCC was unavailable so the script used its WSL GCC fallback. `VELAPET_CORE_TEST result=PASS cases=5`, `VELAPET_SERVICE_TEST result=PASS cases=6`, and `VELAPET_MOTION_TEST result=PASS cases=7`.
+- `git diff --check` passed.
+- Firmware build not run: this clone has no `.env.local.ps1`, so `SIFLI_SDK_ROOT`/toolchain activation is unavailable. No board, serial port, or Flash operation was performed.
+
+### Final state and risks
+
+- The motion model is host-verified only; thresholds are initial defaults and still need real sensor traces from the board.
+- Step-counter semantics (wrap, reset on reboot, per-read limits) remain unverified on hardware; the 500-step guard assumes a poll interval of about 2 seconds.
+- Next: sensor adapter and bounded diagnostics for step-counter validation, then service integration and reminder policy.
+
+## 2026-11-17 - Motion model system design and handoff
+
+### Objective and scope
+
+- Turn the motion-model discussion into a complete system document and a task-level handoff for the watch/frontend and backend owners.
+- The physical board work is assigned to the frontend/watch owner; this change delivers design, the platform-independent core, and work orders only.
+
+### Decisions and changes
+
+- Added `docs/motion-model.md`: sensor input matrix, sampling configuration, one-second feature pipeline, activity state machine with hysteresis, step-counter wrap/reset model, task/reward mapping, sedentary and inactivity reminder policy, persistence fields, proposed interfaces, threading, power strategy, failure handling, validation plan, roadmap, ownership, and risks.
+- Added `docs/motion-handoff.md`: frozen API list, frontend tasks FE-1..FE-7, backend tasks BE-1..BE-2, integration tasks INT-1..INT-2, acceptance criteria, validation commands, definition of done, branch conventions, and coordination risks.
+- Proposed a fifth cross-layer interface `vp_sensor_*` for sampling. It is explicitly marked as requiring PR review before adoption; `AGENTS.md` was not changed in this commit.
+- Documented the current gap that `velapet_motion_*` has no restore-day API, and listed it as required for the P2 persistence task.
+- The existing `velapet_motion.h/.c` and host tests are included in the same change set as the design they implement.
+
+### Validation
+
+- `VELAPET_CORE_TEST result=PASS cases=5`, `VELAPET_SERVICE_TEST result=PASS cases=6`, `VELAPET_MOTION_TEST result=PASS cases=7` via the WSL GCC fallback.
+- `git diff --check` passed for the documentation and source changes.
+- No firmware build, board access, serial command, or Flash operation was performed. No real sensor data was collected.
+
+### Final state and risks
+
+- Design and host-verified core are ready for review and handoff; thresholds and step-counter behavior remain unvalidated on hardware.
+- The main coordination item is approving or rejecting `vp_sensor_*`; the design and handoff both treat it as pending approval.
+- Next: frontend demonstrates step-counter semantics and records golden traces before claiming motion-related task or reminder functionality.
+
+## 2026-11-20 - Integrate VelaPet Web platform
+
+### Objective and scope
+
+- Add the completed VelaPet user dashboard, operations admin, FastAPI data service, Windows BLE bridge, protocol tests, migrations, and integration documentation under the established `host/web/` ownership boundary.
+- Preserve all existing SF32LB52 firmware, hardware, board, project, and AI backend files. This change does not claim real-device BLE validation or PostgreSQL runtime validation.
+
+### Decisions and changes
+
+- Added the pnpm workspace with Vue user/admin applications and shared TypeScript API/types packages.
+- Added the FastAPI/SQLAlchemy service, Alembic migrations, Docker Compose development configuration, Demo-labelled seed data, authentication/RBAC, device uploads, pet data, and admin statistics.
+- Added the Windows Bleak bridge, Fake/transport tests, BLE Sync v1 documentation, and platform-independent candidate C modules under `host/web/firmware/`; the candidate modules were not copied into product `src/` and still require cross-line review and hardware integration.
+- Strengthened `host/web/.gitignore` for local environments, caches, databases, logs, generated builds, and credential-bearing files. Only example environment files with development placeholders are included.
+- Updated the root README directory map and adjusted Web documentation commands for the repository-relative `host/web/` location.
+
+### Validation
+
+- `pnpm install --frozen-lockfile`: passed for all five workspace projects.
+- `pnpm typecheck`: passed for four applicable workspace projects.
+- `pnpm test`: 6 tests passed; the two Vue apps intentionally have no direct Vitest files and use `--passWithNoTests`.
+- `pnpm build`: user and admin production builds passed; the existing Vite warning for chunks larger than 500 kB remains.
+- FastAPI: `14 passed` using the existing isolated Python environment against the moved `host/web/server/tests` tree.
+- BLE bridge: `21 passed` using the moved `host/web/tools/ble-bridge/tests` tree.
+- Firmware build and board tests were not run because no product firmware file changed. PostgreSQL runtime validation was not run because Docker/psql are unavailable on this machine.
+
+### Final state and risks
+
+- The Web platform is ready for branch review under `host/web/`; no generated `dist`, `node_modules`, Python virtual environment, cache, local database, real `.env`, API key, private key, or access token is part of the change.
+- Real SF32LB52 GATT integration, physical device identity confirmation, BLE radio testing, Flash persistence, and PostgreSQL runtime acceptance remain separate follow-up gates.
+
+## 2026-11-24 - Motion/sync decisions, ownership correction, and sync review
+
+### Objective and scope
+
+- Record and apply four lead-level decisions: AGENTS.md section 4 ownership correction, conditional approval of `vp_sensor_*`, reassignment of FE-1/FE-2 to the hardware line, and conditional project approval for the `sf32lb52-sync` candidate C modules.
+- Documentation and ownership only; no firmware source behavior changed and no board work was done.
+
+### Decisions and changes
+
+- Corrected `AGENTS.md` section 4 to the 2026-11-24 final assignment: watch side = member 2, Web management = member 3, including the Web collaboration line and section 5 directory ownership.
+- Added the motion sampling adapter to the hardware-line boundary and `src/app/velapet_motion.*` to the watch-side boundary.
+- Updated `docs/motion-model.md` and `docs/motion-handoff.md`: sampling adapter and calibration now belong to the hardware line, watch side keeps FE-3..FE-7, branch naming uses member-1/member-2, and the Web counterpart is member 3.
+- Added `docs/motion-decisions-2026-11-24.md` with the four decisions, pending items, and sync review gates.
+- `vp_sensor_*` is recorded as conditionally approved pending three review modifications whose text is not yet archived; AGENTS.md's four-interface contract was deliberately left unchanged until they arrive.
+- Reviewed `host/web/firmware/sf32lb52-sync`: compiled and ran its host tests with WSL GCC, result `VELAPET_SYNC_PROTOCOL_TEST result=PASS cases=3`. Conditional approval is subject to gates: explicit 28-byte record codec with cross-language golden vectors, struct ABI/RAM correction, reboot-safe record IDs, BLE-worker ownership, MTU/fragment/NACK handling, authorization closure, and expanded tests.
+
+### Validation
+
+- `git diff --check` passed for all documentation changes.
+- Candidate sync tests: `VELAPET_SYNC_PROTOCOL_TEST result=PASS cases=3`.
+- Not run: firmware build, board/serial/Flash access, and any real sensor or BLE validation.
+
+### Final state and risks
+
+- Ownership and handoff documents now match the 2026-11-24 assignment.
+- `vp_sensor_*` remains conditionally approved until the three review modifications are supplied; the formal fifth interface is not yet recorded in AGENTS.md.
+- The sync candidate remains under `host/web/firmware/` and must not move into `src/` until every listed gate is closed.
 
 ## 2026-11-17 - 冻结 UI 聊天信箱并接入方舟生图
 
