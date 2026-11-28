@@ -4,9 +4,43 @@ VelaPet 阶段 4B-2 可运行版本：Vue 3 用户端、Vue 3 管理端、FastAP
 
 > 当前已完成协议、桥接、Fake BLE、后端和网页的数据链路；尚未在 SF32LB52 真机上编译/烧录正式 GATT，也没有真实步行采集证据，因此不宣称真机 BLE 联调完成。
 
+## 一键启动（Windows）
+
+在仓库的 `host/web` 目录打开 PowerShell，或直接双击 `start-web.cmd`：
+
+```powershell
+Set-Location .\host\web
+
+.\start-web.cmd                 # Mock：用户端 + 管理端，无需后端
+.\start-web.cmd -Mode real      # Real：SQLite 后端 + 用户端 + 管理端
+```
+
+| 参数 | 作用 |
+| --- | --- |
+| `-Mode real` | 启动 FastAPI + SQLite，自动执行 Alembic 迁移 |
+| `-NoAdmin` | 只启动用户端 |
+| `-NoBrowser` | 不自动打开浏览器 |
+| `-Reinstall` | 强制重装前端/后端依赖 |
+
+启动后：
+
+- 用户端：<http://localhost:5173>
+- 管理端：<http://localhost:5174>
+- 后端健康检查：<http://localhost:8000/health>（仅 Real 模式）
+
+说明：
+
+- 首次运行会安装 pnpm（缺失时）和前端依赖；Real 模式还会创建 `server/.venv`、安装后端依赖并迁移 `server/velapet.db`。
+- 每次运行会生成 `host/web/.env.local`；已有文件会备份为 `.env.local.bak-时间戳`。
+- 5173/5174/8000 已被占用时会跳过重复启动；关闭对应的启动窗口即可停止服务。
+- 演示账号：
+  - Mock：用户 `demo@velapet.cn / velapet-demo`，管理员 `admin@velapet.cn / velapet-admin-demo`
+  - Real：用户 `demo@velapet.cn / VelaPetDemo123!`，管理员 `admin@velapet.cn / VelaPetAdmin123!`
+
 ## 组成
 
 ```text
+start-web.cmd / .ps1       Windows 一键启动（Mock/Real）
 apps/user/                 用户端，localhost:5173
 apps/admin/                管理端，localhost:5174
 packages/shared/           共享 TypeScript 模型
